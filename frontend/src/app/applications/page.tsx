@@ -134,40 +134,48 @@ export default function ApplicationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Applications</h2>
-          <p className="text-neutral-500">
+      {/* Header - Mobile optimized */}
+      <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
+        <div className="space-y-1">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Applications</h2>
+          <p className="text-sm md:text-base text-neutral-500">
             Manage all your job applications
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant={viewMode === 'list' ? 'default' : 'outline'} 
-            size="sm" 
-            onClick={() => setViewMode('list')}
-            aria-pressed={viewMode === 'list'}
-            aria-label="Switch to list view"
-          >
-            <Rows className="mr-2 h-4 w-4" /> List
-          </Button>
-          <Button 
-            variant={viewMode === 'kanban' ? 'default' : 'outline'} 
-            size="sm" 
-            onClick={() => setViewMode('kanban')}
-            aria-pressed={viewMode === 'kanban'}
-            aria-label="Switch to kanban view"
-          >
-            <Columns className="mr-2 h-4 w-4" /> Kanban
-          </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Button 
+              variant={viewMode === 'list' ? 'default' : 'outline'} 
+              size="sm" 
+              onClick={() => setViewMode('list')}
+              aria-pressed={viewMode === 'list'}
+              aria-label="Switch to list view"
+              className="touch-manipulation min-h-[44px]"
+            >
+              <Rows className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">List</span>
+            </Button>
+            <Button 
+              variant={viewMode === 'kanban' ? 'default' : 'outline'} 
+              size="sm" 
+              onClick={() => setViewMode('kanban')}
+              aria-pressed={viewMode === 'kanban'}
+              aria-label="Switch to kanban view"
+              className="touch-manipulation min-h-[44px]"
+            >
+              <Columns className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Kanban</span>
+            </Button>
+          </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button aria-label="Add new job application">
-                <Plus className="mr-2 h-4 w-4" />
-                Add Application
+              <Button aria-label="Add new job application" className="touch-manipulation min-h-[44px]">
+                <Plus className="h-4 w-4 md:mr-2" />
+                <span className="hidden sm:inline">Add Application</span>
+                <span className="sm:hidden">Add</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Application</DialogTitle>
               </DialogHeader>
@@ -183,29 +191,31 @@ export default function ApplicationsPage() {
         </div>
       </div>
 
-      <div className="flex items-center space-x-2">
+      {/* Search and Filter - Mobile optimized */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-neutral-500" />
           <Input
             placeholder="Search by company or position..."
-            className="pl-8"
+            className="pl-8 touch-manipulation min-h-[44px]"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button variant="outline">Filter</Button>
+        <Button variant="outline" className="touch-manipulation min-h-[44px]">Filter</Button>
       </div>
 
+      {/* Applications Grid/Kanban - Mobile optimized */}
       {viewMode === 'list' ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredApplications.map((app) => (
             <Link key={app.id} href={`/applications/${app.id}`}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer touch-manipulation active:scale-[0.98]">
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg">{app.companyName}</CardTitle>
-                      <p className="text-sm font-medium text-neutral-700">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <CardTitle className="text-base md:text-lg truncate">{app.companyName}</CardTitle>
+                      <p className="text-sm font-medium text-neutral-700 truncate">
                         {app.position}
                       </p>
                     </div>
@@ -216,12 +226,12 @@ export default function ApplicationsPage() {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex items-center text-sm text-neutral-500">
-                    <MapPin className="mr-1 h-3 w-3" />
-                    {app.location}
+                    <MapPin className="mr-1 h-3 w-3 flex-shrink-0" />
+                    <span className="truncate">{app.location}</span>
                   </div>
                   <div className="flex items-center text-sm text-neutral-500">
-                    <Calendar className="mr-1 h-3 w-3" />
-                    Applied: {formatDate(app.applicationDate)}
+                    <Calendar className="mr-1 h-3 w-3 flex-shrink-0" />
+                    <span>Applied: {formatDate(app.applicationDate)}</span>
                   </div>
                   <div className="mt-4">
                     <Badge className={getStatusColor(app.status)} variant="secondary">
@@ -234,7 +244,7 @@ export default function ApplicationsPage() {
           ))}
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
           {(['Applied','Interview','Offer','Rejected'] as const).map((col) => (
             <Card key={col}>
               <CardHeader>
@@ -243,12 +253,12 @@ export default function ApplicationsPage() {
               <CardContent className="space-y-3">
                 {filteredApplications.filter((a) => a.status === col).map((app) => (
                   <Link key={app.id} href={`/applications/${app.id}`}>
-                    <div className="border rounded-md p-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm">{app.companyName}</span>
+                    <div className="border rounded-md p-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer touch-manipulation active:scale-[0.98]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-sm truncate flex-1">{app.companyName}</span>
                         <Badge className={getPriorityColor(app.priority)} variant="secondary">{app.priority}</Badge>
                       </div>
-                      <p className="text-xs text-neutral-600">{app.position}</p>
+                      <p className="text-xs text-neutral-600 truncate">{app.position}</p>
                     </div>
                   </Link>
                 ))}

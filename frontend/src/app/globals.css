@@ -127,6 +127,155 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Enable smooth scrolling */
+    scroll-behavior: smooth;
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
+  }
+}
+
+/* Mobile Touch Enhancements */
+@layer utilities {
+  /* Touch-friendly interactions */
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  /* Smooth transitions for touch feedback */
+  .touch-manipulation:active {
+    opacity: 0.7;
+  }
+
+  /* Better text selection on mobile */
+  .select-text {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  /* Prevent text selection for interactive elements */
+  .select-none {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Smooth scroll for mobile */
+  .scroll-smooth {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  /* Improved tap targets - minimum 44x44px */
+  button,
+  a,
+  input[type="checkbox"],
+  input[type="radio"],
+  select {
+    min-height: 20px;
+    min-width: 20px;
+  }
+
+  /* Better input focus states on mobile */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  /* Prevent zoom on input focus (iOS) */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="number"],
+  input[type="date"],
+  input[type="datetime-local"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Better card hover states for touch */
+  [role="button"],
+  .cursor-pointer {
+    cursor: pointer;
+  }
+
+  /* Smooth transitions */
+  * {
+    transition-duration: 150ms;
+  }
+
+  /* Better spacing for mobile */
+  .space-y-6 > * + * {
+    margin-top: 1rem;
+  }
+
+  /* Responsive typography */
+  h1 {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+
+  /* Better modal/dialog positioning */
+  [role="dialog"] {
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+}
+
+/* Swipe gesture support */
+@media (hover: none) and (pointer: coarse) {
+  /* Enable momentum scrolling on iOS */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Better touch feedback */
+  button:active,
+  [role="button"]:active,
+  .touch-manipulation:active {
+    transform: scale(0.98);
+  }
+
+  /* Remove hover effects on touch devices */
+  *:hover {
+    transition-duration: 0ms;
+  }
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
   }
 }
 

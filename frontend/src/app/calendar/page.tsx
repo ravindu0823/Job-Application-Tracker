@@ -164,9 +164,9 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Calendar</h2>
-        <p className="text-neutral-500">
+      <div className="space-y-2">
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Calendar</h2>
+        <p className="text-sm md:text-base text-neutral-500">
           View and manage all your scheduled interviews
         </p>
       </div>

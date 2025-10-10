@@ -60,22 +60,28 @@ export function SettingsForm({ settings, onSubmit, isLoading }: SettingsFormProp
               control={form.control}
               name="enableReminders"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Enable Reminders</FormLabel>
-                    <FormDescription>
-                      Receive reminders for upcoming interviews and follow-ups
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <input
-                      type="checkbox"
-                      checked={field.value}
-                      onChange={field.onChange}
-                      aria-label="Enable reminders"
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                  </FormControl>
+                <FormItem>
+                  <label 
+                    htmlFor="enableReminders"
+                    className="flex flex-row items-center justify-between rounded-lg border p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base cursor-pointer">Enable Reminders</FormLabel>
+                      <FormDescription>
+                        Receive reminders for upcoming interviews and follow-ups
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <input
+                        id="enableReminders"
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={field.onChange}
+                        aria-label="Enable reminders"
+                        className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </FormControl>
+                  </label>
                 </FormItem>
               )}
             />
@@ -110,22 +116,28 @@ export function SettingsForm({ settings, onSubmit, isLoading }: SettingsFormProp
               control={form.control}
               name="showSalaryFields"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Show Salary Fields</FormLabel>
-                    <FormDescription>
-                      Display salary fields by default when creating applications
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <input
-                      type="checkbox"
-                      checked={field.value}
-                      onChange={field.onChange}
-                      aria-label="Show salary fields by default"
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                  </FormControl>
+                <FormItem>
+                  <label 
+                    htmlFor="showSalaryFields"
+                    className="flex flex-row items-center justify-between rounded-lg border p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base cursor-pointer">Show Salary Fields</FormLabel>
+                      <FormDescription>
+                        Display salary fields by default when creating applications
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <input
+                        id="showSalaryFields"
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={field.onChange}
+                        aria-label="Show salary fields by default"
+                        className=" rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </FormControl>
+                  </label>
                 </FormItem>
               )}
             />
@@ -227,22 +239,28 @@ export function SettingsForm({ settings, onSubmit, isLoading }: SettingsFormProp
               control={form.control}
               name="weeklySummaryEmail"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Weekly Summary Email</FormLabel>
-                    <FormDescription>
-                      Receive a weekly summary of your applications and interviews
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <input
-                      type="checkbox"
-                      checked={field.value}
-                      onChange={field.onChange}
-                      aria-label="Enable weekly summary email"
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                  </FormControl>
+                <FormItem>
+                  <label 
+                    htmlFor="weeklySummaryEmail"
+                    className="flex flex-row items-center justify-between rounded-lg border p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base cursor-pointer">Weekly Summary Email</FormLabel>
+                      <FormDescription>
+                        Receive a weekly summary of your applications and interviews
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <input
+                        id="weeklySummaryEmail"
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={field.onChange}
+                        aria-label="Enable weekly summary email"
+                        className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </FormControl>
+                  </label>
                 </FormItem>
               )}
             />
@@ -252,22 +270,28 @@ export function SettingsForm({ settings, onSubmit, isLoading }: SettingsFormProp
               control={form.control}
               name="browserNotifications"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Browser Notifications</FormLabel>
-                    <FormDescription>
-                      Get browser notifications for important updates
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <input
-                      type="checkbox"
-                      checked={field.value}
-                      onChange={field.onChange}
-                      aria-label="Enable browser notifications"
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                  </FormControl>
+                <FormItem>
+                  <label 
+                    htmlFor="browserNotifications"
+                    className="flex flex-row items-center justify-between rounded-lg border p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base cursor-pointer">Browser Notifications</FormLabel>
+                      <FormDescription>
+                        Get browser notifications for important updates
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <input
+                        id="browserNotifications"
+                        type="checkbox"
+                        checked={field.value}
+                        onChange={field.onChange}
+                        aria-label="Enable browser notifications"
+                        className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </FormControl>
+                  </label>
                 </FormItem>
               )}
             />
