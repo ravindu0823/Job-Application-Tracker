@@ -62,6 +62,27 @@ export interface Contact {
   createdAt: string;
 }
 
+export interface Document {
+  id: number;
+  applicationId: number;
+  name: string;
+  type: 'Resume' | 'Cover Letter' | 'Portfolio' | 'Certificate' | 'Other';
+  fileSize: number;
+  fileUrl: string;
+  uploadedAt: string;
+  description?: string;
+}
+
+export interface StatusHistory {
+  id: number;
+  applicationId: number;
+  oldStatus: ApplicationStatus;
+  newStatus: ApplicationStatus;
+  changedAt: string;
+  notes?: string;
+  changedBy?: string;
+}
+
 export interface Statistics {
   totalApplications: number;
   activeApplications: number;
