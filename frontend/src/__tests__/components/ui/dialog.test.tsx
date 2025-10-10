@@ -132,8 +132,6 @@ describe('Dialog Components', () => {
 
   describe('DialogContent', () => {
     it('renders close button by default', async () => {
-      const user = userEvent.setup()
-      
       render(
         <Dialog open={true}>
           <DialogContent>
