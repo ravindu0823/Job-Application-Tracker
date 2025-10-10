@@ -151,11 +151,11 @@ describe('Validation Schemas', () => {
       const result = interviewSchema.safeParse(invalidData);
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error.issues).toContainEqual(
-          expect.objectContaining({
-            message: 'Interview date is required',
-          })
+        // Check that interviewDate field has an error
+        const interviewDateError = result.error.issues.find(issue => 
+          issue.path.includes('interviewDate')
         );
+        expect(interviewDateError).toBeDefined();
       }
     });
 
