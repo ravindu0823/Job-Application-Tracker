@@ -9,12 +9,17 @@ vi.mock('next-themes', () => ({
   useTheme: vi.fn(),
 }))
 
+interface MockThemeReturn {
+  theme: string | undefined;
+  setTheme: (theme: string) => void;
+}
+
 describe('ThemeToggle Component', () => {
   it('renders correctly', () => {
     vi.mocked(useTheme).mockReturnValue({
       theme: 'light',
       setTheme: vi.fn(),
-    } as any)
+    } as MockThemeReturn)
 
     render(<ThemeToggle />)
     
@@ -26,7 +31,7 @@ describe('ThemeToggle Component', () => {
     vi.mocked(useTheme).mockReturnValue({
       theme: 'light',
       setTheme: vi.fn(),
-    } as any)
+    } as MockThemeReturn)
 
     render(<ThemeToggle />)
     
@@ -39,7 +44,7 @@ describe('ThemeToggle Component', () => {
     vi.mocked(useTheme).mockReturnValue({
       theme: 'light',
       setTheme: setThemeMock,
-    } as any)
+    } as MockThemeReturn)
 
     render(<ThemeToggle />)
     
@@ -55,7 +60,7 @@ describe('ThemeToggle Component', () => {
     vi.mocked(useTheme).mockReturnValue({
       theme: 'dark',
       setTheme: setThemeMock,
-    } as any)
+    } as MockThemeReturn)
 
     render(<ThemeToggle />)
     
@@ -69,7 +74,7 @@ describe('ThemeToggle Component', () => {
     vi.mocked(useTheme).mockReturnValue({
       theme: 'light',
       setTheme: vi.fn(),
-    } as any)
+    } as MockThemeReturn)
 
     render(<ThemeToggle />)
     
@@ -81,7 +86,7 @@ describe('ThemeToggle Component', () => {
     vi.mocked(useTheme).mockReturnValue({
       theme: 'light',
       setTheme: vi.fn(),
-    } as any)
+    } as MockThemeReturn)
 
     render(<ThemeToggle />)
     

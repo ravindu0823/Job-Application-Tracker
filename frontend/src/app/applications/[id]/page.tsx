@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, Calendar, MapPin, DollarSign, ExternalLink, Users2 } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, use } from 'react';
 import type { Note, NoteType, Application, Interview, ApplicationStatus } from '@/lib/types';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { NoteForm } from '@/components/forms/note-form';
@@ -466,7 +466,7 @@ function ApplicationDetail({ id }: { id: string }) {
   );
 }
 
-export default async function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function ApplicationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   return <ApplicationDetail id={id} />;
 }
