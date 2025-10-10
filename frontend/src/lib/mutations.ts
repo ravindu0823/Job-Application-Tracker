@@ -142,10 +142,44 @@ export function useCreateInterview() {
     onSuccess: (_, variables) => {
       toast.success('Interview scheduled successfully');
       queryClient.invalidateQueries({ queryKey: queryKeys.interviews(variables.applicationId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.interviews() });
     },
     onError: (err) => {
       toast.error('Failed to schedule interview');
       console.error('Create interview error:', err);
+    },
+  });
+}
+
+export function useUpdateInterview() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<Interview> }) =>
+      apiService.updateInterview(id, data),
+    onSuccess: () => {
+      toast.success('Interview updated successfully');
+      queryClient.invalidateQueries({ queryKey: queryKeys.interviews() });
+    },
+    onError: (err) => {
+      toast.error('Failed to update interview');
+      console.error('Update interview error:', err);
+    },
+  });
+}
+
+export function useDeleteInterview() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => apiService.deleteInterview(id),
+    onSuccess: () => {
+      toast.success('Interview deleted successfully');
+      queryClient.invalidateQueries({ queryKey: queryKeys.interviews() });
+    },
+    onError: (err) => {
+      toast.error('Failed to delete interview');
+      console.error('Delete interview error:', err);
     },
   });
 }

@@ -79,8 +79,17 @@ export const apiService = {
     return api.get(url).then(res => res.data);
   },
   
+  getInterviewsByDateRange: (startDate: string, endDate: string): Promise<Interview[]> => 
+    api.get(`/interviews?startDate=${startDate}&endDate=${endDate}`).then(res => res.data),
+  
   createInterview: (data: Omit<Interview, 'id' | 'createdAt'>): Promise<Interview> => 
     api.post('/interviews', data).then(res => res.data),
+  
+  updateInterview: (id: number, data: Partial<Interview>): Promise<Interview> => 
+    api.put(`/interviews/${id}`, data).then(res => res.data),
+  
+  deleteInterview: (id: number): Promise<void> => 
+    api.delete(`/interviews/${id}`).then(() => {}),
   
   // Notes
   getNotes: (applicationId: number): Promise<Note[]> => 
