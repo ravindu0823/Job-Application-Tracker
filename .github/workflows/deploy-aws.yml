@@ -1,0 +1,814 @@
+name: Deploy Backend to AWS
+
+on:
+    push:
+        branches:
+            - main
+            - production
+        paths:
+            - "LiterateWinnerApi/**"
+            - ".github/workflows/deploy-aws.yml"
+    workflow_dispatch:
+        inputs:
+            environment:
+                description: "Environment to deploy to"
+                required: true
+                default: "staging"
+                type: choice
+                options:
+                    - staging
+                    - production
+
+env:
+    DOTNET_VERSION: "9.0.x"
+    AWS_REGION: "us-east-1" # Change to your preferred region
+    ECR_REPOSITORY: "job-tracker-api"
+    ECS_SERVICE: "job-tracker-service"
+    ECS_CLUSTER: "job-tracker-cluster"
+    ECS_TASK_DEFINITION: "job-tracker-task"
+    CONTAINER_NAME: "job-tracker-api"
+    SOLUTION_PATH: "./LiterateWinnerApi/JobApplicationTrackerApi.sln"
+    DOCKERFILE_PATH: "./LiterateWinnerApi"
+
+jobs:
+    check-deploy:
+        name: Check if deployment is requested
+        runs-on: ubuntu-latest
+        if: contains(github.event.head_commit.message, 'deploy') || github.event_name == 'workflow_dispatch'
+        outputs:
+            should_deploy: ${{ steps.check.outputs.should_deploy }}
+        steps:
+            - name: Check commit message
+              id: check
+              run: |
+                  echo "Deployment requested in commit message or manual trigger"
+                  echo "should_deploy=true" >> $GITHUB_OUTPUT
+
+    test:
+        name: Run Tests
+        runs-on: ubuntu-latest
+        needs: check-deploy
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: ${{ env.DOTNET_VERSION }}
+
+            - name: Restore dependencies
+              run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+            - name: Build solution
+              run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+            - name: Run unit tests
+              run: dotnet test ${{ env.SOLUTION_PATH }} --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory ./TestResults
+
+            - name: Upload test results
+              uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: test-results
+                  path: ./TestResults
+
+    build-and-push:
+        name: Build Docker Image and Push to ECR
+        runs-on: ubuntu-latest
+        needs: test
+        outputs:
+            image: ${{ steps.build-image.outputs.image }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.AWS_REGION }}
+
+            - name: Login to Amazon ECR
+              id: login-ecr
+              uses: aws-actions/amazon-ecr-login@v2
+
+            - name: Create Dockerfile if not exists
+              run: |
+                  if [ ! -f "${{ env.DOCKERFILE_PATH }}/Dockerfile" ]; then
+                    cat > ${{ env.DOCKERFILE_PATH }}/Dockerfile << 'EOF'
+                  FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+                  WORKDIR /app
+                  EXPOSE 80
+                  EXPOSE 443
+
+                  FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+                  WORKDIR /src
+                  COPY ["LiterateWinnerApi/JobApplicationTrackerApi.csproj", "LiterateWinnerApi/"]
+                  RUN dotnet restore "LiterateWinnerApi/JobApplicationTrackerApi.csproj"
+                  COPY . .
+                  WORKDIR "/src/LiterateWinnerApi"
+                  RUN dotnet build "JobApplicationTrackerApi.csproj" -c Release -o /app/build
+
+                  FROM build AS publish
+                  RUN dotnet publish "JobApplicationTrackerApi.csproj" -c Release -o /app/publish /p:UseAppHost=false
+
+                  FROM base AS final
+                  WORKDIR /app
+                  COPY --from=publish /app/publish .
+                  ENTRYPOINT ["dotnet", "JobApplicationTrackerApi.dll"]
+                  EOF
+                  fi
+
+            - name: Build, tag, and push image to Amazon ECR
+              id: build-image
+              env:
+                  ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+                  IMAGE_TAG: ${{ github.sha }}
+              run: |
+                  cd ${{ env.DOCKERFILE_PATH }}
+                  docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+                  docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+                  docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+                  docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+                  echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    deploy-staging:
+        name: Deploy to AWS Staging
+        runs-on: ubuntu-latest
+        needs: build-and-push
+        if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
+        environment:
+            name: staging
+            url: ${{ steps.get-url.outputs.url }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.AWS_REGION }}
+
+            - name: Create/Update RDS Database (Staging)
+              run: |
+                  # Check if RDS instance exists
+                  if ! aws rds describe-db-instances \
+                    --db-instance-identifier job-tracker-db-staging \
+                    --region ${{ env.AWS_REGION }} 2>/dev/null; then
+                    
+                    echo "Creating RDS instance..."
+                    aws rds create-db-instance \
+                      --db-instance-identifier job-tracker-db-staging \
+                      --db-instance-class db.t3.micro \
+                      --engine sqlserver-ex \
+                      --master-username ${{ secrets.DB_MASTER_USERNAME }} \
+                      --master-user-password ${{ secrets.DB_MASTER_PASSWORD }} \
+                      --allocated-storage 20 \
+                      --backup-retention-period 7 \
+                      --storage-encrypted \
+                      --publicly-accessible false \
+                      --vpc-security-group-ids ${{ secrets.AWS_SECURITY_GROUP_ID }} \
+                      --db-subnet-group-name ${{ secrets.AWS_DB_SUBNET_GROUP }} \
+                      --tags "Key=Environment,Value=Staging" "Key=Project,Value=JobTracker"
+                    
+                    # Wait for database to be available
+                    aws rds wait db-instance-available \
+                      --db-instance-identifier job-tracker-db-staging \
+                      --region ${{ env.AWS_REGION }}
+                  fi
+
+            - name: Create/Update ElastiCache Redis (Staging)
+              run: |
+                  # Check if ElastiCache cluster exists
+                  if ! aws elasticache describe-cache-clusters \
+                    --cache-cluster-id job-tracker-redis-staging \
+                    --region ${{ env.AWS_REGION }} 2>/dev/null; then
+                    
+                    echo "Creating ElastiCache Redis cluster..."
+                    aws elasticache create-cache-cluster \
+                      --cache-cluster-id job-tracker-redis-staging \
+                      --cache-node-type cache.t3.micro \
+                      --engine redis \
+                      --num-cache-nodes 1 \
+                      --cache-subnet-group-name ${{ secrets.AWS_CACHE_SUBNET_GROUP }} \
+                      --security-group-ids ${{ secrets.AWS_SECURITY_GROUP_ID }} \
+                      --tags "Key=Environment,Value=Staging" "Key=Project,Value=JobTracker"
+                  fi
+
+            - name: Create/Update ECS Cluster
+              run: |
+                  # Create ECS cluster if it doesn't exist
+                  if ! aws ecs describe-clusters \
+                    --clusters ${{ env.ECS_CLUSTER }}-staging \
+                    --region ${{ env.AWS_REGION }} \
+                    --query 'clusters[0].status' -o text 2>/dev/null | grep -q ACTIVE; then
+                    
+                    aws ecs create-cluster \
+                      --cluster-name ${{ env.ECS_CLUSTER }}-staging \
+                      --region ${{ env.AWS_REGION }} \
+                      --capacity-providers FARGATE FARGATE_SPOT \
+                      --default-capacity-provider-strategy \
+                        capacityProvider=FARGATE,weight=1,base=1 \
+                        capacityProvider=FARGATE_SPOT,weight=4 \
+                      --tags "key=Environment,value=Staging"
+                  fi
+
+            - name: Create Task Definition
+              run: |
+                  cat > task-definition-staging.json << EOF
+                  {
+                    "family": "${{ env.ECS_TASK_DEFINITION }}-staging",
+                    "networkMode": "awsvpc",
+                    "requiresCompatibilities": ["FARGATE"],
+                    "cpu": "512",
+                    "memory": "1024",
+                    "executionRoleArn": "${{ secrets.ECS_EXECUTION_ROLE_ARN }}",
+                    "taskRoleArn": "${{ secrets.ECS_TASK_ROLE_ARN }}",
+                    "containerDefinitions": [
+                      {
+                        "name": "${{ env.CONTAINER_NAME }}",
+                        "image": "${{ needs.build-and-push.outputs.image }}",
+                        "portMappings": [
+                          {
+                            "containerPort": 80,
+                            "protocol": "tcp"
+                          }
+                        ],
+                        "environment": [
+                          {
+                            "name": "ASPNETCORE_ENVIRONMENT",
+                            "value": "Staging"
+                          },
+                          {
+                            "name": "ASPNETCORE_URLS",
+                            "value": "http://+:80"
+                          }
+                        ],
+                        "secrets": [
+                          {
+                            "name": "ConnectionStrings__DefaultConnection",
+                            "valueFrom": "${{ secrets.AWS_SECRET_ARN_DB_STAGING }}"
+                          },
+                          {
+                            "name": "ConnectionStrings__IdentityConnection",
+                            "valueFrom": "${{ secrets.AWS_SECRET_ARN_IDENTITY_STAGING }}"
+                          },
+                          {
+                            "name": "ConnectionStrings__Redis",
+                            "valueFrom": "${{ secrets.AWS_SECRET_ARN_REDIS_STAGING }}"
+                          },
+                          {
+                            "name": "JwtSettings__Secret",
+                            "valueFrom": "${{ secrets.AWS_SECRET_ARN_JWT }}"
+                          }
+                        ],
+                        "logConfiguration": {
+                          "logDriver": "awslogs",
+                          "options": {
+                            "awslogs-group": "/ecs/job-tracker-staging",
+                            "awslogs-region": "${{ env.AWS_REGION }}",
+                            "awslogs-stream-prefix": "ecs",
+                            "awslogs-create-group": "true"
+                          }
+                        },
+                        "healthCheck": {
+                          "command": ["CMD-SHELL", "curl -f http://localhost/health || exit 1"],
+                          "interval": 30,
+                          "timeout": 5,
+                          "retries": 3,
+                          "startPeriod": 60
+                        }
+                      }
+                    ]
+                  }
+                  EOF
+
+            - name: Register Task Definition
+              id: task-def
+              run: |
+                  TASK_DEF_ARN=$(aws ecs register-task-definition \
+                    --cli-input-json file://task-definition-staging.json \
+                    --region ${{ env.AWS_REGION }} \
+                    --query 'taskDefinition.taskDefinitionArn' \
+                    --output text)
+                  echo "task-definition-arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+
+            - name: Create/Update Load Balancer and Target Group
+              run: |
+                  # This should ideally be done via Terraform/CloudFormation
+                  # For simplicity, we're showing the AWS CLI commands
+
+                  # Check if target group exists
+                  if ! aws elbv2 describe-target-groups \
+                    --names job-tracker-tg-staging \
+                    --region ${{ env.AWS_REGION }} 2>/dev/null; then
+                    
+                    aws elbv2 create-target-group \
+                      --name job-tracker-tg-staging \
+                      --protocol HTTP \
+                      --port 80 \
+                      --vpc-id ${{ secrets.AWS_VPC_ID }} \
+                      --target-type ip \
+                      --health-check-enabled \
+                      --health-check-path /health \
+                      --health-check-interval-seconds 30 \
+                      --health-check-timeout-seconds 5 \
+                      --healthy-threshold-count 2 \
+                      --unhealthy-threshold-count 3
+                  fi
+
+            - name: Create/Update ECS Service
+              run: |
+                  # Get target group ARN
+                  TARGET_GROUP_ARN=$(aws elbv2 describe-target-groups \
+                    --names job-tracker-tg-staging \
+                    --region ${{ env.AWS_REGION }} \
+                    --query 'TargetGroups[0].TargetGroupArn' \
+                    --output text)
+
+                  # Check if service exists
+                  if aws ecs describe-services \
+                    --cluster ${{ env.ECS_CLUSTER }}-staging \
+                    --services ${{ env.ECS_SERVICE }}-staging \
+                    --region ${{ env.AWS_REGION }} \
+                    --query 'services[0].status' -o text 2>/dev/null | grep -q ACTIVE; then
+                    
+                    # Update existing service
+                    aws ecs update-service \
+                      --cluster ${{ env.ECS_CLUSTER }}-staging \
+                      --service ${{ env.ECS_SERVICE }}-staging \
+                      --task-definition ${{ steps.task-def.outputs.task-definition-arn }} \
+                      --force-new-deployment \
+                      --region ${{ env.AWS_REGION }}
+                  else
+                    # Create new service
+                    aws ecs create-service \
+                      --cluster ${{ env.ECS_CLUSTER }}-staging \
+                      --service-name ${{ env.ECS_SERVICE }}-staging \
+                      --task-definition ${{ steps.task-def.outputs.task-definition-arn }} \
+                      --desired-count 2 \
+                      --launch-type FARGATE \
+                      --platform-version LATEST \
+                      --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.AWS_SUBNET_IDS }}],securityGroups=[${{ secrets.AWS_SECURITY_GROUP_ID }}],assignPublicIp=ENABLED}" \
+                      --load-balancers "targetGroupArn=$TARGET_GROUP_ARN,containerName=${{ env.CONTAINER_NAME }},containerPort=80" \
+                      --health-check-grace-period-seconds 60 \
+                      --region ${{ env.AWS_REGION }}
+                  fi
+
+            - name: Configure Auto-scaling (Staging)
+              run: |
+                  # Register scalable target
+                  aws application-autoscaling register-scalable-target \
+                    --service-namespace ecs \
+                    --resource-id service/${{ env.ECS_CLUSTER }}-staging/${{ env.ECS_SERVICE }}-staging \
+                    --scalable-dimension ecs:service:DesiredCount \
+                    --min-capacity 1 \
+                    --max-capacity 5 \
+                    --region ${{ env.AWS_REGION }} || echo "Scalable target already exists"
+
+                  # Create scaling policy based on CPU
+                  aws application-autoscaling put-scaling-policy \
+                    --service-namespace ecs \
+                    --resource-id service/${{ env.ECS_CLUSTER }}-staging/${{ env.ECS_SERVICE }}-staging \
+                    --scalable-dimension ecs:service:DesiredCount \
+                    --policy-name cpu-scaling-policy-staging \
+                    --policy-type TargetTrackingScaling \
+                    --target-tracking-scaling-policy-configuration file://<(cat << EOF
+                  {
+                    "TargetValue": 70.0,
+                    "PredefinedMetricSpecification": {
+                      "PredefinedMetricType": "ECSServiceAverageCPUUtilization"
+                    },
+                    "ScaleOutCooldown": 60,
+                    "ScaleInCooldown": 120
+                  }
+                  EOF
+                  ) \
+                    --region ${{ env.AWS_REGION }} || echo "Scaling policy already exists"
+
+            - name: Wait for Service Stability
+              run: |
+                  aws ecs wait services-stable \
+                    --cluster ${{ env.ECS_CLUSTER }}-staging \
+                    --services ${{ env.ECS_SERVICE }}-staging \
+                    --region ${{ env.AWS_REGION }}
+
+            - name: Get Service URL
+              id: get-url
+              run: |
+                  # Get load balancer DNS name
+                  ALB_DNS=$(aws elbv2 describe-load-balancers \
+                    --names job-tracker-alb-staging \
+                    --region ${{ env.AWS_REGION }} \
+                    --query 'LoadBalancers[0].DNSName' \
+                    --output text 2>/dev/null || echo "Not configured")
+
+                  echo "url=http://$ALB_DNS" >> $GITHUB_OUTPUT
+                  echo "Service URL: http://$ALB_DNS"
+
+    deploy-production:
+        name: Deploy to AWS Production
+        runs-on: ubuntu-latest
+        needs: build-and-push
+        if: github.ref == 'refs/heads/production' || github.event.inputs.environment == 'production'
+        environment:
+            name: production
+            url: ${{ steps.get-url.outputs.url }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ env.AWS_REGION }}
+
+            - name: Create/Update RDS Database (Production)
+              run: |
+                  # Production uses Multi-AZ and larger instance
+                  if ! aws rds describe-db-instances \
+                    --db-instance-identifier job-tracker-db-prod \
+                    --region ${{ env.AWS_REGION }} 2>/dev/null; then
+                    
+                    echo "Creating RDS instance..."
+                    aws rds create-db-instance \
+                      --db-instance-identifier job-tracker-db-prod \
+                      --db-instance-class db.t3.small \
+                      --engine sqlserver-ex \
+                      --master-username ${{ secrets.DB_MASTER_USERNAME }} \
+                      --master-user-password ${{ secrets.DB_MASTER_PASSWORD }} \
+                      --allocated-storage 100 \
+                      --max-allocated-storage 500 \
+                      --backup-retention-period 30 \
+                      --storage-encrypted \
+                      --storage-type gp3 \
+                      --multi-az \
+                      --publicly-accessible false \
+                      --vpc-security-group-ids ${{ secrets.AWS_SECURITY_GROUP_ID }} \
+                      --db-subnet-group-name ${{ secrets.AWS_DB_SUBNET_GROUP }} \
+                      --tags "Key=Environment,Value=Production" "Key=Project,Value=JobTracker"
+                    
+                    # Wait for database to be available
+                    aws rds wait db-instance-available \
+                      --db-instance-identifier job-tracker-db-prod \
+                      --region ${{ env.AWS_REGION }}
+                  fi
+
+            - name: Create/Update ElastiCache Redis (Production with Cluster Mode)
+              run: |
+                  if ! aws elasticache describe-replication-groups \
+                    --replication-group-id job-tracker-redis-prod \
+                    --region ${{ env.AWS_REGION }} 2>/dev/null; then
+                    
+                    echo "Creating ElastiCache Redis cluster..."
+                    aws elasticache create-replication-group \
+                      --replication-group-id job-tracker-redis-prod \
+                      --replication-group-description "Job Tracker Redis Production" \
+                      --cache-node-type cache.t3.medium \
+                      --engine redis \
+                      --num-cache-clusters 2 \
+                      --automatic-failover-enabled \
+                      --cache-subnet-group-name ${{ secrets.AWS_CACHE_SUBNET_GROUP }} \
+                      --security-group-ids ${{ secrets.AWS_SECURITY_GROUP_ID }} \
+                      --tags "Key=Environment,Value=Production" "Key=Project,Value=JobTracker"
+                  fi
+
+            - name: Create/Update ECS Cluster (Production)
+              run: |
+                  if ! aws ecs describe-clusters \
+                    --clusters ${{ env.ECS_CLUSTER }}-prod \
+                    --region ${{ env.AWS_REGION }} \
+                    --query 'clusters[0].status' -o text 2>/dev/null | grep -q ACTIVE; then
+                    
+                    aws ecs create-cluster \
+                      --cluster-name ${{ env.ECS_CLUSTER }}-prod \
+                      --region ${{ env.AWS_REGION }} \
+                      --capacity-providers FARGATE \
+                      --default-capacity-provider-strategy capacityProvider=FARGATE,weight=1,base=2 \
+                      --tags "key=Environment,value=Production"
+                  fi
+
+            - name: Create Task Definition (Production)
+              run: |
+                  cat > task-definition-prod.json << EOF
+                  {
+                    "family": "${{ env.ECS_TASK_DEFINITION }}-prod",
+                    "networkMode": "awsvpc",
+                    "requiresCompatibilities": ["FARGATE"],
+                    "cpu": "1024",
+                    "memory": "2048",
+                    "executionRoleArn": "${{ secrets.ECS_EXECUTION_ROLE_ARN }}",
+                    "taskRoleArn": "${{ secrets.ECS_TASK_ROLE_ARN }}",
+                    "containerDefinitions": [
+                      {
+                        "name": "${{ env.CONTAINER_NAME }}",
+                        "image": "${{ needs.build-and-push.outputs.image }}",
+                        "portMappings": [
+                          {
+                            "containerPort": 80,
+                            "protocol": "tcp"
+                          }
+                        ],
+                        "environment": [
+                          {
+                            "name": "ASPNETCORE_ENVIRONMENT",
+                            "value": "Production"
+                          },
+                          {
+                            "name": "ASPNETCORE_URLS",
+                            "value": "http://+:80"
+                          }
+                        ],
+                        "secrets": [
+                          {
+                            "name": "ConnectionStrings__DefaultConnection",
+                            "valueFrom": "${{ secrets.AWS_SECRET_ARN_DB_PROD }}"
+                          },
+                          {
+                            "name": "ConnectionStrings__IdentityConnection",
+                            "valueFrom": "${{ secrets.AWS_SECRET_ARN_IDENTITY_PROD }}"
+                          },
+                          {
+                            "name": "ConnectionStrings__Redis",
+                            "valueFrom": "${{ secrets.AWS_SECRET_ARN_REDIS_PROD }}"
+                          },
+                          {
+                            "name": "JwtSettings__Secret",
+                            "valueFrom": "${{ secrets.AWS_SECRET_ARN_JWT }}"
+                          }
+                        ],
+                        "logConfiguration": {
+                          "logDriver": "awslogs",
+                          "options": {
+                            "awslogs-group": "/ecs/job-tracker-prod",
+                            "awslogs-region": "${{ env.AWS_REGION }}",
+                            "awslogs-stream-prefix": "ecs",
+                            "awslogs-create-group": "true"
+                          }
+                        },
+                        "healthCheck": {
+                          "command": ["CMD-SHELL", "curl -f http://localhost/health || exit 1"],
+                          "interval": 30,
+                          "timeout": 5,
+                          "retries": 3,
+                          "startPeriod": 60
+                        }
+                      }
+                    ]
+                  }
+                  EOF
+
+            - name: Register Task Definition
+              id: task-def
+              run: |
+                  TASK_DEF_ARN=$(aws ecs register-task-definition \
+                    --cli-input-json file://task-definition-prod.json \
+                    --region ${{ env.AWS_REGION }} \
+                    --query 'taskDefinition.taskDefinitionArn' \
+                    --output text)
+                  echo "task-definition-arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+
+            - name: Deploy with Blue-Green Strategy
+              run: |
+                  TARGET_GROUP_ARN=$(aws elbv2 describe-target-groups \
+                    --names job-tracker-tg-prod \
+                    --region ${{ env.AWS_REGION }} \
+                    --query 'TargetGroups[0].TargetGroupArn' \
+                    --output text)
+
+                  # Update service with new task definition
+                  aws ecs update-service \
+                    --cluster ${{ env.ECS_CLUSTER }}-prod \
+                    --service ${{ env.ECS_SERVICE }}-prod \
+                    --task-definition ${{ steps.task-def.outputs.task-definition-arn }} \
+                    --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100" \
+                    --region ${{ env.AWS_REGION }} || \
+
+                  # Create service if it doesn't exist
+                  aws ecs create-service \
+                    --cluster ${{ env.ECS_CLUSTER }}-prod \
+                    --service-name ${{ env.ECS_SERVICE }}-prod \
+                    --task-definition ${{ steps.task-def.outputs.task-definition-arn }} \
+                    --desired-count 3 \
+                    --launch-type FARGATE \
+                    --platform-version LATEST \
+                    --deployment-configuration "maximumPercent=200,minimumHealthyPercent=100" \
+                    --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.AWS_SUBNET_IDS }}],securityGroups=[${{ secrets.AWS_SECURITY_GROUP_ID }}],assignPublicIp=ENABLED}" \
+                    --load-balancers "targetGroupArn=$TARGET_GROUP_ARN,containerName=${{ env.CONTAINER_NAME }},containerPort=80" \
+                    --health-check-grace-period-seconds 60 \
+                    --region ${{ env.AWS_REGION }}
+
+            - name: Configure Auto-scaling (Production)
+              run: |
+                  aws application-autoscaling register-scalable-target \
+                    --service-namespace ecs \
+                    --resource-id service/${{ env.ECS_CLUSTER }}-prod/${{ env.ECS_SERVICE }}-prod \
+                    --scalable-dimension ecs:service:DesiredCount \
+                    --min-capacity 3 \
+                    --max-capacity 10 \
+                    --region ${{ env.AWS_REGION }} || echo "Scalable target already exists"
+
+                  # CPU-based scaling
+                  aws application-autoscaling put-scaling-policy \
+                    --service-namespace ecs \
+                    --resource-id service/${{ env.ECS_CLUSTER }}-prod/${{ env.ECS_SERVICE }}-prod \
+                    --scalable-dimension ecs:service:DesiredCount \
+                    --policy-name cpu-scaling-policy-prod \
+                    --policy-type TargetTrackingScaling \
+                    --target-tracking-scaling-policy-configuration file://<(cat << EOF
+                  {
+                    "TargetValue": 60.0,
+                    "PredefinedMetricSpecification": {
+                      "PredefinedMetricType": "ECSServiceAverageCPUUtilization"
+                    },
+                    "ScaleOutCooldown": 60,
+                    "ScaleInCooldown": 180
+                  }
+                  EOF
+                  ) \
+                    --region ${{ env.AWS_REGION }} || echo "CPU scaling policy already exists"
+
+                  # Memory-based scaling
+                  aws application-autoscaling put-scaling-policy \
+                    --service-namespace ecs \
+                    --resource-id service/${{ env.ECS_CLUSTER }}-prod/${{ env.ECS_SERVICE }}-prod \
+                    --scalable-dimension ecs:service:DesiredCount \
+                    --policy-name memory-scaling-policy-prod \
+                    --policy-type TargetTrackingScaling \
+                    --target-tracking-scaling-policy-configuration file://<(cat << EOF
+                  {
+                    "TargetValue": 70.0,
+                    "PredefinedMetricSpecification": {
+                      "PredefinedMetricType": "ECSServiceAverageMemoryUtilization"
+                    },
+                    "ScaleOutCooldown": 60,
+                    "ScaleInCooldown": 180
+                  }
+                  EOF
+                  ) \
+                    --region ${{ env.AWS_REGION }} || echo "Memory scaling policy already exists"
+
+            - name: Configure CloudWatch Alarms
+              run: |
+                  # High CPU alarm
+                  aws cloudwatch put-metric-alarm \
+                    --alarm-name job-tracker-high-cpu-prod \
+                    --alarm-description "Alert when CPU exceeds 80%" \
+                    --metric-name CPUUtilization \
+                    --namespace AWS/ECS \
+                    --statistic Average \
+                    --period 300 \
+                    --threshold 80 \
+                    --comparison-operator GreaterThanThreshold \
+                    --evaluation-periods 2 \
+                    --dimensions Name=ServiceName,Value=${{ env.ECS_SERVICE }}-prod Name=ClusterName,Value=${{ env.ECS_CLUSTER }}-prod
+
+                  # High Memory alarm
+                  aws cloudwatch put-metric-alarm \
+                    --alarm-name job-tracker-high-memory-prod \
+                    --alarm-description "Alert when Memory exceeds 85%" \
+                    --metric-name MemoryUtilization \
+                    --namespace AWS/ECS \
+                    --statistic Average \
+                    --period 300 \
+                    --threshold 85 \
+                    --comparison-operator GreaterThanThreshold \
+                    --evaluation-periods 2 \
+                    --dimensions Name=ServiceName,Value=${{ env.ECS_SERVICE }}-prod Name=ClusterName,Value=${{ env.ECS_CLUSTER }}-prod
+
+            - name: Wait for Service Stability
+              run: |
+                  aws ecs wait services-stable \
+                    --cluster ${{ env.ECS_CLUSTER }}-prod \
+                    --services ${{ env.ECS_SERVICE }}-prod \
+                    --region ${{ env.AWS_REGION }}
+
+            - name: Get Service URL
+              id: get-url
+              run: |
+                  ALB_DNS=$(aws elbv2 describe-load-balancers \
+                    --names job-tracker-alb-prod \
+                    --region ${{ env.AWS_REGION }} \
+                    --query 'LoadBalancers[0].DNSName' \
+                    --output text 2>/dev/null || echo "Not configured")
+
+                  echo "url=https://$ALB_DNS" >> $GITHUB_OUTPUT
+                  echo "Service URL: https://$ALB_DNS"
+
+            - name: Health Check
+              run: |
+                  ALB_DNS=$(aws elbv2 describe-load-balancers \
+                    --names job-tracker-alb-prod \
+                    --region ${{ env.AWS_REGION }} \
+                    --query 'LoadBalancers[0].DNSName' \
+                    --output text)
+
+                  for i in {1..10}; do
+                    if curl -f https://$ALB_DNS/health; then
+                      echo "Deployment successful!"
+                      exit 0
+                    fi
+                    echo "Waiting for application to start... ($i/10)"
+                    sleep 15
+                  done
+
+                  echo "Health check failed!"
+                  exit 1
+
+    notify:
+        name: Send Notifications
+        runs-on: ubuntu-latest
+        needs: [deploy-staging, deploy-production]
+        if: always()
+        steps:
+            - name: Determine deployment status
+              id: status
+              run: |
+                  if [ "${{ needs.deploy-staging.result }}" == "success" ] || [ "${{ needs.deploy-production.result }}" == "success" ]; then
+                      echo "status=success" >> $GITHUB_OUTPUT
+                      echo "color=3066993" >> $GITHUB_OUTPUT
+                  elif [ "${{ needs.deploy-staging.result }}" == "failure" ] || [ "${{ needs.deploy-production.result }}" == "failure" ]; then
+                      echo "status=failure" >> $GITHUB_OUTPUT
+                      echo "color=15158332" >> $GITHUB_OUTPUT
+                  else
+                      echo "status=cancelled" >> $GITHUB_OUTPUT
+                      echo "color=16776960" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Send Discord notification
+              if: always()
+              env:
+                  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+              run: |
+                  if [ -z "$DISCORD_WEBHOOK" ]; then
+                      echo "Discord webhook not configured. Skipping notification."
+                      exit 0
+                  fi
+
+                  STAGING_STATUS="${{ needs.deploy-staging.result }}"
+                  PRODUCTION_STATUS="${{ needs.deploy-production.result }}"
+
+                  # Build deployment info
+                  DEPLOY_INFO=""
+                  if [ "$STAGING_STATUS" != "skipped" ]; then
+                      STAGING_EMOJI=$([ "$STAGING_STATUS" == "success" ] && echo "✅" || echo "❌")
+                      DEPLOY_INFO="${DEPLOY_INFO}\n**Staging:** ${STAGING_EMOJI} ${STAGING_STATUS}"
+                  fi
+                  if [ "$PRODUCTION_STATUS" != "skipped" ]; then
+                      PRODUCTION_EMOJI=$([ "$PRODUCTION_STATUS" == "success" ] && echo "✅" || echo "❌")
+                      DEPLOY_INFO="${DEPLOY_INFO}\n**Production:** ${PRODUCTION_EMOJI} ${PRODUCTION_STATUS}"
+                  fi
+
+                  # Create Discord embed
+                  curl -H "Content-Type: application/json" \
+                       -X POST \
+                       -d "{
+                         \"embeds\": [{
+                           \"title\": \"🚀 AWS Deployment Status\",
+                           \"description\": \"Deployment completed for Job Application Tracker API\",
+                           \"color\": ${{ steps.status.outputs.color }},
+                           \"fields\": [
+                             {
+                               \"name\": \"Repository\",
+                               \"value\": \"${{ github.repository }}\",
+                               \"inline\": true
+                             },
+                             {
+                               \"name\": \"Branch\",
+                               \"value\": \"${{ github.ref_name }}\",
+                               \"inline\": true
+                             },
+                             {
+                               \"name\": \"Commit\",
+                               \"value\": \"[\`${GITHUB_SHA:0:7}\`](${{ github.event.head_commit.url }})\",
+                               \"inline\": true
+                             },
+                             {
+                               \"name\": \"Author\",
+                               \"value\": \"${{ github.actor }}\",
+                               \"inline\": true
+                             },
+                             {
+                               \"name\": \"Deployment Status\",
+                               \"value\": \"${DEPLOY_INFO}\",
+                               \"inline\": false
+                             },
+                             {
+                               \"name\": \"Commit Message\",
+                               \"value\": \"${{ github.event.head_commit.message }}\",
+                               \"inline\": false
+                             }
+                           ],
+                           \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\",
+                           \"footer\": {
+                             \"text\": \"GitHub Actions\"
+                           }
+                         }]
+                       }" \
+                       "$DISCORD_WEBHOOK"
