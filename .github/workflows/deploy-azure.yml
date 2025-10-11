@@ -1,0 +1,539 @@
+name: Deploy Backend to Azure
+
+on:
+    push:
+        branches:
+            - main
+            - production
+        paths:
+            - "LiterateWinnerApi/**"
+            - ".github/workflows/deploy-azure.yml"
+    workflow_dispatch:
+        inputs:
+            environment:
+                description: "Environment to deploy to"
+                required: true
+                default: "staging"
+                type: choice
+                options:
+                    - staging
+                    - production
+
+env:
+    DOTNET_VERSION: "9.0.x"
+    AZURE_WEBAPP_NAME: "job-tracker-api" # Set your Azure Web App name
+    AZURE_WEBAPP_PACKAGE_PATH: "./LiterateWinnerApi/LiterateWinnerApi"
+    AZURE_RESOURCE_GROUP: "job-tracker-rg" # Set your resource group name
+    SOLUTION_PATH: "./LiterateWinnerApi/JobApplicationTrackerApi.sln"
+
+jobs:
+    check-deploy:
+        name: Check if deployment is requested
+        runs-on: ubuntu-latest
+        if: contains(github.event.head_commit.message, 'deploy') || github.event_name == 'workflow_dispatch'
+        outputs:
+            should_deploy: ${{ steps.check.outputs.should_deploy }}
+        steps:
+            - name: Check commit message
+              id: check
+              run: |
+                  echo "Deployment requested in commit message or manual trigger"
+                  echo "should_deploy=true" >> $GITHUB_OUTPUT
+
+    test:
+        name: Run Tests
+        runs-on: ubuntu-latest
+        needs: check-deploy
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: ${{ env.DOTNET_VERSION }}
+
+            - name: Restore dependencies
+              run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+            - name: Build solution
+              run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+            - name: Run unit tests
+              run: dotnet test ${{ env.SOLUTION_PATH }} --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory ./TestResults
+
+            - name: Upload test results
+              uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: test-results
+                  path: ./TestResults
+
+    build:
+        name: Build and Package
+        runs-on: ubuntu-latest
+        needs: test
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: ${{ env.DOTNET_VERSION }}
+
+            - name: Restore dependencies
+              run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+            - name: Build application
+              run: dotnet build ${{ env.SOLUTION_PATH }} --configuration Release --no-restore
+
+            - name: Publish application
+              run: dotnet publish ${{ env.AZURE_WEBAPP_PACKAGE_PATH }} --configuration Release --no-build --output ./publish
+
+            - name: Upload artifact for deployment
+              uses: actions/upload-artifact@v4
+              with:
+                  name: dotnet-app
+                  path: ./publish
+
+    deploy-staging:
+        name: Deploy to Staging
+        runs-on: ubuntu-latest
+        needs: build
+        if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'staging'
+        environment:
+            name: staging
+            url: ${{ steps.deploy.outputs.webapp-url }}
+        steps:
+            - name: Download artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: dotnet-app
+                  path: ./publish
+
+            - name: Login to Azure
+              uses: azure/login@v2
+              with:
+                  creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+            - name: Setup Azure CLI
+              run: |
+                  az config set extension.use_dynamic_install=yes_without_prompt
+
+            - name: Create/Update App Service (if needed)
+              run: |
+                  # Check if app service exists
+                  if ! az webapp show --name ${{ env.AZURE_WEBAPP_NAME }}-staging --resource-group ${{ env.AZURE_RESOURCE_GROUP }} 2>/dev/null; then
+                    echo "Creating App Service..."
+                    az webapp create \
+                      --name ${{ env.AZURE_WEBAPP_NAME }}-staging \
+                      --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                      --plan job-tracker-plan \
+                      --runtime "DOTNET:9.0"
+                  fi
+
+            - name: Configure App Settings
+              run: |
+                  az webapp config appsettings set \
+                    --name ${{ env.AZURE_WEBAPP_NAME }}-staging \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --settings \
+                      ASPNETCORE_ENVIRONMENT=Staging \
+                      ConnectionStrings__DefaultConnection="${{ secrets.AZURE_SQL_CONNECTION_STRING_STAGING }}" \
+                      ConnectionStrings__IdentityConnection="${{ secrets.AZURE_SQL_IDENTITY_CONNECTION_STRING_STAGING }}" \
+                      ConnectionStrings__Redis="${{ secrets.AZURE_REDIS_CONNECTION_STRING_STAGING }}" \
+                      JwtSettings__Secret="${{ secrets.JWT_SECRET }}" \
+                      JwtSettings__Issuer="${{ secrets.JWT_ISSUER }}" \
+                      JwtSettings__Audience="${{ secrets.JWT_AUDIENCE }}" \
+                      JwtSettings__ExpiryInMinutes="${{ secrets.JWT_EXPIRY_MINUTES }}" \
+                      AzureStorage__ConnectionString="${{ secrets.AZURE_STORAGE_CONNECTION_STRING_STAGING }}" \
+                      RabbitMQ__Host="${{ secrets.RABBITMQ_HOST_STAGING }}" \
+                      RabbitMQ__Username="${{ secrets.RABBITMQ_USERNAME }}" \
+                      RabbitMQ__Password="${{ secrets.RABBITMQ_PASSWORD }}" \
+                      Serilog__WriteTo__1__Args__serverUrl="${{ secrets.SEQ_SERVER_URL_STAGING }}" \
+                      WEBSITE_TIME_ZONE="UTC" \
+                      WEBSITE_HTTPLOGGING_RETENTION_DAYS="7"
+
+            - name: Enable HTTPS Only
+              run: |
+                  az webapp update \
+                    --name ${{ env.AZURE_WEBAPP_NAME }}-staging \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --set httpsOnly=true
+
+            - name: Configure Auto-scaling
+              run: |
+                  # Get the App Service Plan ID
+                  PLAN_ID=$(az appservice plan show \
+                    --name job-tracker-plan \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --query id -o tsv)
+
+                  # Create autoscale settings
+                  az monitor autoscale create \
+                    --name job-tracker-autoscale-staging \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --resource $PLAN_ID \
+                    --min-count 1 \
+                    --max-count 5 \
+                    --count 2 || echo "Autoscale already exists"
+
+                  # Add CPU-based scale-out rule
+                  az monitor autoscale rule create \
+                    --autoscale-name job-tracker-autoscale-staging \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --condition "Percentage CPU > 75 avg 5m" \
+                    --scale out 1 || echo "Scale out rule exists"
+
+                  # Add CPU-based scale-in rule
+                  az monitor autoscale rule create \
+                    --autoscale-name job-tracker-autoscale-staging \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --condition "Percentage CPU < 25 avg 5m" \
+                    --scale in 1 || echo "Scale in rule exists"
+
+            - name: Deploy to Azure Web App
+              id: deploy
+              uses: azure/webapps-deploy@v3
+              with:
+                  app-name: ${{ env.AZURE_WEBAPP_NAME }}-staging
+                  package: ./publish
+
+            - name: Run Database Migrations
+              run: |
+                  # Trigger migration endpoint or use EF Core migrations
+                  echo "Database migrations will be handled by MigrationRunner on startup"
+
+            - name: Configure Application Insights
+              run: |
+                  # Enable Application Insights for monitoring
+                  INSTRUMENTATION_KEY=$(az monitor app-insights component show \
+                    --app job-tracker-insights-staging \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --query instrumentationKey -o tsv 2>/dev/null || echo "")
+
+                  if [ -z "$INSTRUMENTATION_KEY" ]; then
+                    echo "Creating Application Insights..."
+                    az monitor app-insights component create \
+                      --app job-tracker-insights-staging \
+                      --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                      --location eastus \
+                      --kind web
+                    
+                    INSTRUMENTATION_KEY=$(az monitor app-insights component show \
+                      --app job-tracker-insights-staging \
+                      --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                      --query instrumentationKey -o tsv)
+                  fi
+
+                  az webapp config appsettings set \
+                    --name ${{ env.AZURE_WEBAPP_NAME }}-staging \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --settings \
+                      APPINSIGHTS_INSTRUMENTATIONKEY="$INSTRUMENTATION_KEY" \
+                      APPLICATIONINSIGHTS_CONNECTION_STRING="InstrumentationKey=$INSTRUMENTATION_KEY"
+
+            - name: Warmup Application
+              run: |
+                  sleep 30
+                  URL="https://${{ env.AZURE_WEBAPP_NAME }}-staging.azurewebsites.net"
+                  curl -f $URL/health || echo "Warmup request sent"
+
+            - name: Logout from Azure
+              if: always()
+              run: az logout
+
+    deploy-production:
+        name: Deploy to Production
+        runs-on: ubuntu-latest
+        needs: build
+        if: github.ref == 'refs/heads/production' || github.event.inputs.environment == 'production'
+        environment:
+            name: production
+            url: ${{ steps.deploy.outputs.webapp-url }}
+        steps:
+            - name: Download artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: dotnet-app
+                  path: ./publish
+
+            - name: Login to Azure
+              uses: azure/login@v2
+              with:
+                  creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+            - name: Setup Azure CLI
+              run: |
+                  az config set extension.use_dynamic_install=yes_without_prompt
+
+            - name: Create/Update App Service (if needed)
+              run: |
+                  # Check if app service exists
+                  if ! az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} 2>/dev/null; then
+                    echo "Creating App Service..."
+                    az webapp create \
+                      --name ${{ env.AZURE_WEBAPP_NAME }} \
+                      --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                      --plan job-tracker-plan \
+                      --runtime "DOTNET:9.0"
+                  fi
+
+            - name: Configure App Settings
+              run: |
+                  az webapp config appsettings set \
+                    --name ${{ env.AZURE_WEBAPP_NAME }} \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --settings \
+                      ASPNETCORE_ENVIRONMENT=Production \
+                      ConnectionStrings__DefaultConnection="${{ secrets.AZURE_SQL_CONNECTION_STRING_PROD }}" \
+                      ConnectionStrings__IdentityConnection="${{ secrets.AZURE_SQL_IDENTITY_CONNECTION_STRING_PROD }}" \
+                      ConnectionStrings__Redis="${{ secrets.AZURE_REDIS_CONNECTION_STRING_PROD }}" \
+                      JwtSettings__Secret="${{ secrets.JWT_SECRET }}" \
+                      JwtSettings__Issuer="${{ secrets.JWT_ISSUER }}" \
+                      JwtSettings__Audience="${{ secrets.JWT_AUDIENCE }}" \
+                      JwtSettings__ExpiryInMinutes="${{ secrets.JWT_EXPIRY_MINUTES }}" \
+                      AzureStorage__ConnectionString="${{ secrets.AZURE_STORAGE_CONNECTION_STRING_PROD }}" \
+                      RabbitMQ__Host="${{ secrets.RABBITMQ_HOST_PROD }}" \
+                      RabbitMQ__Username="${{ secrets.RABBITMQ_USERNAME }}" \
+                      RabbitMQ__Password="${{ secrets.RABBITMQ_PASSWORD }}" \
+                      Serilog__WriteTo__1__Args__serverUrl="${{ secrets.SEQ_SERVER_URL_PROD }}" \
+                      WEBSITE_TIME_ZONE="UTC" \
+                      WEBSITE_HTTPLOGGING_RETENTION_DAYS="30"
+
+            - name: Enable HTTPS Only
+              run: |
+                  az webapp update \
+                    --name ${{ env.AZURE_WEBAPP_NAME }} \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --set httpsOnly=true
+
+            - name: Configure Deployment Slots (Blue-Green Deployment)
+              run: |
+                  # Create staging slot if it doesn't exist
+                  if ! az webapp deployment slot list \
+                    --name ${{ env.AZURE_WEBAPP_NAME }} \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --query "[?name=='staging']" -o tsv 2>/dev/null; then
+                    
+                    az webapp deployment slot create \
+                      --name ${{ env.AZURE_WEBAPP_NAME }} \
+                      --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                      --slot staging
+                  fi
+
+            - name: Configure Auto-scaling (Production)
+              run: |
+                  # Get the App Service Plan ID
+                  PLAN_ID=$(az appservice plan show \
+                    --name job-tracker-plan \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --query id -o tsv)
+
+                  # Create autoscale settings for production
+                  az monitor autoscale create \
+                    --name job-tracker-autoscale-prod \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --resource $PLAN_ID \
+                    --min-count 2 \
+                    --max-count 10 \
+                    --count 3 || echo "Autoscale already exists"
+
+                  # Add CPU-based scale-out rule
+                  az monitor autoscale rule create \
+                    --autoscale-name job-tracker-autoscale-prod \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --condition "Percentage CPU > 70 avg 5m" \
+                    --scale out 2 || echo "Scale out rule exists"
+
+                  # Add CPU-based scale-in rule
+                  az monitor autoscale rule create \
+                    --autoscale-name job-tracker-autoscale-prod \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --condition "Percentage CPU < 30 avg 5m" \
+                    --scale in 1 || echo "Scale in rule exists"
+
+            - name: Deploy to Staging Slot
+              id: deploy-slot
+              uses: azure/webapps-deploy@v3
+              with:
+                  app-name: ${{ env.AZURE_WEBAPP_NAME }}
+                  slot-name: staging
+                  package: ./publish
+
+            - name: Warmup Staging Slot
+              run: |
+                  sleep 30
+                  URL="https://${{ env.AZURE_WEBAPP_NAME }}-staging.azurewebsites.net"
+                  for i in {1..5}; do
+                    curl -f $URL/health && break || sleep 10
+                  done
+
+            - name: Swap Slots (Blue-Green Deployment)
+              run: |
+                  az webapp deployment slot swap \
+                    --name ${{ env.AZURE_WEBAPP_NAME }} \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --slot staging \
+                    --target-slot production
+
+            - name: Configure Application Insights (Production)
+              run: |
+                  # Enable Application Insights for monitoring
+                  INSTRUMENTATION_KEY=$(az monitor app-insights component show \
+                    --app job-tracker-insights-prod \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --query instrumentationKey -o tsv 2>/dev/null || echo "")
+
+                  if [ -z "$INSTRUMENTATION_KEY" ]; then
+                    echo "Creating Application Insights..."
+                    az monitor app-insights component create \
+                      --app job-tracker-insights-prod \
+                      --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                      --location eastus \
+                      --kind web
+                    
+                    INSTRUMENTATION_KEY=$(az monitor app-insights component show \
+                      --app job-tracker-insights-prod \
+                      --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                      --query instrumentationKey -o tsv)
+                  fi
+
+                  az webapp config appsettings set \
+                    --name ${{ env.AZURE_WEBAPP_NAME }} \
+                    --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                    --settings \
+                      APPINSIGHTS_INSTRUMENTATIONKEY="$INSTRUMENTATION_KEY" \
+                      APPLICATIONINSIGHTS_CONNECTION_STRING="InstrumentationKey=$INSTRUMENTATION_KEY"
+
+            - name: Configure Backup
+              run: |
+                  # Create storage account for backups if it doesn't exist
+                  STORAGE_ACCOUNT="jobtrackerbkup$(date +%s | tail -c 6)"
+
+                  if ! az storage account show --name $STORAGE_ACCOUNT --resource-group ${{ env.AZURE_RESOURCE_GROUP }} 2>/dev/null; then
+                    az storage account create \
+                      --name $STORAGE_ACCOUNT \
+                      --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+                      --location eastus \
+                      --sku Standard_LRS
+                  fi
+
+                  # Configure automated backups
+                  echo "Backup configuration should be done via Azure Portal or separate script"
+
+            - name: Verify Production Deployment
+              id: deploy
+              run: |
+                  URL="https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+                  echo "webapp-url=$URL" >> $GITHUB_OUTPUT
+
+                  # Health check
+                  for i in {1..10}; do
+                    if curl -f $URL/health; then
+                      echo "Deployment successful!"
+                      exit 0
+                    fi
+                    echo "Waiting for application to start... ($i/10)"
+                    sleep 10
+                  done
+
+                  echo "Health check failed!"
+                  exit 1
+
+            - name: Logout from Azure
+              if: always()
+              run: az logout
+
+    notify:
+        name: Send Notifications
+        runs-on: ubuntu-latest
+        needs: [deploy-staging, deploy-production]
+        if: always()
+        steps:
+            - name: Determine deployment status
+              id: status
+              run: |
+                  if [ "${{ needs.deploy-staging.result }}" == "success" ] || [ "${{ needs.deploy-production.result }}" == "success" ]; then
+                      echo "status=success" >> $GITHUB_OUTPUT
+                      echo "color=3066993" >> $GITHUB_OUTPUT
+                  elif [ "${{ needs.deploy-staging.result }}" == "failure" ] || [ "${{ needs.deploy-production.result }}" == "failure" ]; then
+                      echo "status=failure" >> $GITHUB_OUTPUT
+                      echo "color=15158332" >> $GITHUB_OUTPUT
+                  else
+                      echo "status=cancelled" >> $GITHUB_OUTPUT
+                      echo "color=16776960" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Send Discord notification
+              if: always()
+              env:
+                  DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+              run: |
+                  if [ -z "$DISCORD_WEBHOOK" ]; then
+                      echo "Discord webhook not configured. Skipping notification."
+                      exit 0
+                  fi
+
+                  STAGING_STATUS="${{ needs.deploy-staging.result }}"
+                  PRODUCTION_STATUS="${{ needs.deploy-production.result }}"
+
+                  # Build deployment info
+                  DEPLOY_INFO=""
+                  if [ "$STAGING_STATUS" != "skipped" ]; then
+                      STAGING_EMOJI=$([ "$STAGING_STATUS" == "success" ] && echo "✅" || echo "❌")
+                      DEPLOY_INFO="${DEPLOY_INFO}\n**Staging:** ${STAGING_EMOJI} ${STAGING_STATUS}"
+                  fi
+                  if [ "$PRODUCTION_STATUS" != "skipped" ]; then
+                      PRODUCTION_EMOJI=$([ "$PRODUCTION_STATUS" == "success" ] && echo "✅" || echo "❌")
+                      DEPLOY_INFO="${DEPLOY_INFO}\n**Production:** ${PRODUCTION_EMOJI} ${PRODUCTION_STATUS}"
+                  fi
+
+                  # Create Discord embed
+                  curl -H "Content-Type: application/json" \
+                       -X POST \
+                       -d "{
+                         \"embeds\": [{
+                           \"title\": \"🚀 Azure Deployment Status\",
+                           \"description\": \"Deployment completed for Job Application Tracker API\",
+                           \"color\": ${{ steps.status.outputs.color }},
+                           \"fields\": [
+                             {
+                               \"name\": \"Repository\",
+                               \"value\": \"${{ github.repository }}\",
+                               \"inline\": true
+                             },
+                             {
+                               \"name\": \"Branch\",
+                               \"value\": \"${{ github.ref_name }}\",
+                               \"inline\": true
+                             },
+                             {
+                               \"name\": \"Commit\",
+                               \"value\": \"[\`${GITHUB_SHA:0:7}\`](${{ github.event.head_commit.url }})\",
+                               \"inline\": true
+                             },
+                             {
+                               \"name\": \"Author\",
+                               \"value\": \"${{ github.actor }}\",
+                               \"inline\": true
+                             },
+                             {
+                               \"name\": \"Deployment Status\",
+                               \"value\": \"${DEPLOY_INFO}\",
+                               \"inline\": false
+                             },
+                             {
+                               \"name\": \"Commit Message\",
+                               \"value\": \"${{ github.event.head_commit.message }}\",
+                               \"inline\": false
+                             }
+                           ],
+                           \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\",
+                           \"footer\": {
+                             \"text\": \"GitHub Actions\"
+                           }
+                         }]
+                       }" \
+                       "$DISCORD_WEBHOOK"
