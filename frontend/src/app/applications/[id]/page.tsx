@@ -152,75 +152,80 @@ function ApplicationDetail({ id }: { id: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
+      {/* Header - Mobile optimized */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-start space-x-2 min-w-0">
           <Link href="/applications">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="touch-manipulation min-h-[44px] min-w-[44px] flex-shrink-0">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xl md:text-3xl font-bold tracking-tight truncate">
               {application.companyName}
             </h2>
-            <p className="text-neutral-500">{application.position}</p>
+            <p className="text-sm md:text-base text-neutral-500 truncate">{application.position}</p>
           </div>
         </div>
-        <Badge className={getStatusColor(application.status)} variant="secondary">
+        <Badge className={`${getStatusColor(application.status)} flex-shrink-0`} variant="secondary">
           {application.status}
         </Badge>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+      {/* Info Cards - Mobile optimized */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 md:gap-4">
+        <Card className="touch-manipulation">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Location</CardTitle>
             <MapPin className="h-4 w-4 text-neutral-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-semibold">{application.location}</div>
+            <div className="text-base md:text-lg font-semibold truncate">{application.location}</div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="touch-manipulation">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Applied On</CardTitle>
             <Calendar className="h-4 w-4 text-neutral-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-semibold">
+            <div className="text-base md:text-lg font-semibold">
               {formatDate(application.applicationDate)}
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="touch-manipulation">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Salary Range</CardTitle>
             <DollarSign className="h-4 w-4 text-neutral-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-semibold">
+            <div className="text-base md:text-lg font-semibold">
               ${application.salaryMin?.toLocaleString()} - ${application.salaryMax?.toLocaleString()}
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Tabs - Mobile optimized with horizontal scroll */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="interviews">Interviews</TabsTrigger>
-          <TabsTrigger value="notes">Notes</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="contacts">Contacts</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <TabsList className="inline-flex w-auto min-w-full sm:w-full">
+            <TabsTrigger value="overview" className="touch-manipulation min-h-[44px]">Overview</TabsTrigger>
+            <TabsTrigger value="interviews" className="touch-manipulation min-h-[44px]">Interviews</TabsTrigger>
+            <TabsTrigger value="notes" className="touch-manipulation min-h-[44px]">Notes</TabsTrigger>
+            <TabsTrigger value="documents" className="touch-manipulation min-h-[44px]">Documents</TabsTrigger>
+            <TabsTrigger value="history" className="touch-manipulation min-h-[44px]">History</TabsTrigger>
+            <TabsTrigger value="contacts" className="touch-manipulation min-h-[44px]">Contacts</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Job Description</CardTitle>
+              <CardTitle className="text-base md:text-lg">Job Description</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-neutral-700 whitespace-pre-wrap">
@@ -231,7 +236,7 @@ function ApplicationDetail({ id }: { id: string }) {
                   href={application.jobUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-4 inline-flex items-center text-sm text-blue-600 hover:underline"
+                  className="mt-4 inline-flex items-center text-sm text-blue-600 hover:underline touch-manipulation"
                 >
                   View Job Posting
                   <ExternalLink className="ml-1 h-3 w-3" />
@@ -242,7 +247,7 @@ function ApplicationDetail({ id }: { id: string }) {
 
           <Card>
             <CardHeader>
-              <CardTitle>Requirements</CardTitle>
+              <CardTitle className="text-base md:text-lg">Requirements</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-neutral-700 whitespace-pre-wrap">
@@ -256,9 +261,9 @@ function ApplicationDetail({ id }: { id: string }) {
           <div className="flex justify-end">
             <Dialog open={isInterviewModalOpen} onOpenChange={setIsInterviewModalOpen}>
               <DialogTrigger asChild>
-                <Button>Schedule Interview</Button>
+                <Button className="touch-manipulation min-h-[44px]">Schedule Interview</Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Schedule Interview</DialogTitle>
                 </DialogHeader>
@@ -277,26 +282,26 @@ function ApplicationDetail({ id }: { id: string }) {
             interviews.map((interview) => (
               <Card key={interview.id}>
                 <CardHeader>
-                  <CardTitle>{interview.interviewType} Interview</CardTitle>
+                  <CardTitle className="text-base md:text-lg">{interview.interviewType} Interview</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex items-center text-sm">
-                    <Calendar className="mr-2 h-4 w-4 text-neutral-500" />
-                    {formatDateTime(interview.interviewDate)}
+                    <Calendar className="mr-2 h-4 w-4 text-neutral-500 flex-shrink-0" />
+                    <span className="break-words">{formatDateTime(interview.interviewDate)}</span>
                   </div>
                   <div className="flex items-center text-sm">
-                    <MapPin className="mr-2 h-4 w-4 text-neutral-500" />
-                    {interview.location}
+                    <MapPin className="mr-2 h-4 w-4 text-neutral-500 flex-shrink-0" />
+                    <span className="break-words">{interview.location}</span>
                   </div>
                   {interview.meetingLink && (
                     <a
                       href={interview.meetingLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center text-sm text-blue-600 hover:underline"
+                      className="inline-flex items-center text-sm text-blue-600 hover:underline touch-manipulation break-all"
                     >
                       Join Meeting
-                      <ExternalLink className="ml-1 h-3 w-3" />
+                      <ExternalLink className="ml-1 h-3 w-3 flex-shrink-0" />
                     </a>
                   )}
                   <p className="text-sm text-neutral-700">
@@ -315,11 +320,11 @@ function ApplicationDetail({ id }: { id: string }) {
         </TabsContent>
 
         <TabsContent value="notes" className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="text-sm text-neutral-600">Filter</span>
               <Select value={noteFilter} onValueChange={(v) => setNoteFilter(v as (NoteType | 'All'))}>
-                <SelectTrigger className="min-w-[10rem]"><SelectValue placeholder="All" /></SelectTrigger>
+                <SelectTrigger className="min-w-[10rem] touch-manipulation min-h-[44px]"><SelectValue placeholder="All" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="All">All</SelectItem>
                   {noteTypes.map((t) => (
@@ -330,9 +335,9 @@ function ApplicationDetail({ id }: { id: string }) {
             </div>
             <Dialog open={isNoteModalOpen} onOpenChange={setIsNoteModalOpen}>
               <DialogTrigger asChild>
-                <Button onClick={() => { setEditingNote(null); setIsNoteModalOpen(true); }}>Add Note</Button>
+                <Button onClick={() => { setEditingNote(null); setIsNoteModalOpen(true); }} className="touch-manipulation min-h-[44px] w-full sm:w-auto">Add Note</Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{editingNote ? 'Edit Note' : 'Add Note'}</DialogTitle>
                 </DialogHeader>
@@ -352,18 +357,18 @@ function ApplicationDetail({ id }: { id: string }) {
             filteredNotes.map((note) => (
               <Card key={note.id}>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <CardTitle className="text-base font-semibold">{note.title}</CardTitle>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="outline">{note.noteType}</Badge>
-                      <Button size="sm" variant="ghost" onClick={() => { setEditingNote(note); setIsNoteModalOpen(true); }}>Edit</Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleDeleteNote(note.id)}>Delete</Button>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditingNote(note); setIsNoteModalOpen(true); }} className="touch-manipulation min-h-[36px]">Edit</Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleDeleteNote(note.id)} className="touch-manipulation min-h-[36px]">Delete</Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-sm text-neutral-700 prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: note.content }} />
-                  <p className="mt-2 text-xs text-neutral-500">
+                  <div className="text-sm text-neutral-700 prose prose-sm max-w-none dark:prose-invert break-words" dangerouslySetInnerHTML={{ __html: note.content }} />
+                  <p className="mt-2 text-xs text-neutral-500 break-words">
                     Created {formatDateTime(note.createdAt)}
                     {note.updatedAt && ` • Updated ${formatDateTime(note.updatedAt)}`}
                   </p>
@@ -380,16 +385,16 @@ function ApplicationDetail({ id }: { id: string }) {
         </TabsContent>
 
         <TabsContent value="documents" className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="text-sm text-neutral-600">Upload resumes, cover letters, and related files</div>
-            <Button>Upload Document</Button>
+            <Button className="touch-manipulation min-h-[44px] w-full sm:w-auto">Upload Document</Button>
           </div>
           <Card>
             <CardContent className="py-8 text-center text-neutral-500">
               Document upload integration coming soon
             </CardContent>
           </Card>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {[{ id: 1, name: 'Resume_v3.pdf', type: 'Resume', size: '128 KB', uploadedAt: '2025-03-02' }].map((d) => (
               <Card key={d.id}>
                 <CardHeader>
