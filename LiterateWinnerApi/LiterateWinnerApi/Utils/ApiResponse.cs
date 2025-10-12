@@ -6,11 +6,30 @@
 /// <typeparam name="T">The type of data included in the response</typeparam>
 public sealed class ApiResponse<T>
 {
+    /// <summary>
+    /// Indicates whether the API operation was successful.
+    /// </summary>
     public bool IsSuccess { get; set; }
-    public string Message { get; set; }
-    public T Data { get; set; }
+    /// <summary>
+    /// A human-readable message providing details about the operation's result.
+    /// </summary>
+    required public string Message { get; set; }
+    /// <summary>
+    /// The actual data payload of the response.
+    /// </summary>
+    required public T Data { get; set; }
+    /// <summary>
+    /// The UTC timestamp when the response was generated.
+    /// </summary>
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-    public Dictionary<string, object> Metadata { get; set; }
+    /// <summary>
+    /// A collection of specific error messages, often used for validation failures.
+    /// </summary>
+    public IEnumerable<string>? Errors { get; set; }
+    /// <summary>
+    /// A dictionary for any additional metadata related to the response, such as pagination details.
+    /// </summary>
+    public Dictionary<string, object>? Metadata { get; set; }
 
     /// <summary>
     /// Creates a successful API response
@@ -33,15 +52,17 @@ public sealed class ApiResponse<T>
     /// Creates a failed API response
     /// </summary>
     /// <param name="message">The error message</param>
+    /// <param name="errors">A list of specific errors, e.g., validation errors.</param>
     /// <returns>A failed ApiResponse instance</returns>
-    public static ApiResponse<T> Failure(string message)
+    public static ApiResponse<T> Failure(string message, IEnumerable<string>? errors = null)
     {
         return new ApiResponse<T>
         {
             IsSuccess = false,
             Message = message,
             Data = default!,
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.UtcNow,
+            Errors = errors
         };
     }
 }
