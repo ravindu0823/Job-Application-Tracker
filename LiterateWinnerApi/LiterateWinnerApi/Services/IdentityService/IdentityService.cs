@@ -6,13 +6,8 @@ public sealed class IdentityService(IHttpContextAccessor context) : IIdentitySer
 {
     public string? GetUserIdentity()
     {
-        try
-        {
-            return context.HttpContext!.User.FindFirst(ClaimTypes.Name)!.Value;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
+        // Use null-conditional operators (?.) for safe navigation.
+        // This avoids NullReferenceException if HttpContext, User, or the claim is null.
+        return context.HttpContext?.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     }
 }
