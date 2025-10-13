@@ -302,7 +302,7 @@ public static class DependencyInjection
     private static IServiceCollection RegisterSeriLogsServices(this IServiceCollection services)
     {
         var configuration = new ConfigurationBuilder()
-            .AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
             .Build();
 
         Log.Logger = new LoggerConfiguration()
