@@ -20,8 +20,10 @@ public interface IContactsService
     /// </summary>
     /// <param name="id">The contact ID</param>
     /// <param name="userId">The user ID</param>
-    /// <returns>The contact details</returns>
-    Task<ContactResponseDto?> GetContactByIdAsync(int id, string userId);
+    /// <returns>The contact details.</returns>
+    /// <exception cref="JobApplicationTrackerApi.Exceptions.NotFoundException">Thrown if the contact is not found.</exception>
+    /// <exception cref="JobApplicationTrackerApi.Exceptions.UnauthorizedAccessException">Thrown if the user does not have access to the contact.</exception>
+    Task<ContactResponseDto> GetContactByIdAsync(int id, string userId);
 
     /// <summary>
     /// Create a new contact
@@ -29,6 +31,8 @@ public interface IContactsService
     /// <param name="createContactDto">The contact data</param>
     /// <param name="userId">The user ID</param>
     /// <returns>The created contact</returns>
+    /// <exception cref="JobApplicationTrackerApi.Exceptions.NotFoundException">Thrown if the associated application is not found.</exception>
+    /// <exception cref="JobApplicationTrackerApi.Exceptions.UnauthorizedAccessException">Thrown if the user does not have access to the application.</exception>
     Task<ContactResponseDto> CreateContactAsync(CreateContactDto createContactDto, string userId);
 
     /// <summary>
@@ -38,6 +42,8 @@ public interface IContactsService
     /// <param name="updateContactDto">The updated contact data</param>
     /// <param name="userId">The user ID</param>
     /// <returns>The updated contact</returns>
+    /// <exception cref="JobApplicationTrackerApi.Exceptions.NotFoundException">Thrown if the contact is not found.</exception>
+    /// <exception cref="JobApplicationTrackerApi.Exceptions.UnauthorizedAccessException">Thrown if the user does not have access to the contact.</exception>
     Task<ContactResponseDto> UpdateContactAsync(int id, UpdateContactDto updateContactDto, string userId);
 
     /// <summary>
@@ -45,16 +51,20 @@ public interface IContactsService
     /// </summary>
     /// <param name="id">The contact ID</param>
     /// <param name="userId">The user ID</param>
-    /// <returns>True if deleted successfully</returns>
-    Task<bool> DeleteContactAsync(int id, string userId);
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="JobApplicationTrackerApi.Exceptions.NotFoundException">Thrown if the contact is not found.</exception>
+    /// <exception cref="JobApplicationTrackerApi.Exceptions.UnauthorizedAccessException">Thrown if the user does not have access to the contact.</exception>
+    Task DeleteContactAsync(int id, string userId);
 
     /// <summary>
     /// Set a contact as the primary contact for an application
     /// </summary>
     /// <param name="id">The contact ID</param>
     /// <param name="userId">The user ID</param>
-    /// <returns>True if set successfully</returns>
-    Task<bool> SetPrimaryContactAsync(int id, string userId);
+    /// <returns>A task representing the asynchronous operation.</returns>
+    /// <exception cref="JobApplicationTrackerApi.Exceptions.NotFoundException">Thrown if the contact is not found.</exception>
+    /// <exception cref="JobApplicationTrackerApi.Exceptions.UnauthorizedAccessException">Thrown if the user does not have access to the contact.</exception>
+    Task SetPrimaryContactAsync(int id, string userId);
 
     /// <summary>
     /// Get the primary contact for an application
