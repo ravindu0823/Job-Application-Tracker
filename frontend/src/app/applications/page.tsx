@@ -1,24 +1,32 @@
 "use client";
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Search, MapPin, Calendar, Columns, Rows } from 'lucide-react';
-import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import type { Application, ApplicationStatus, Priority } from '@/lib/types';
-import { formatDate } from '@/lib/utils';
-import { ApplicationForm } from '@/components/forms/application-form';
-import { useCreateApplication } from '@/lib/mutations';
-import { FormErrorBoundary } from '@/components/error-boundary';
-import type { ApplicationFormData } from '@/lib/validation';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Plus, MapPin, Calendar, Columns, Rows, Search } from "lucide-react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import type { Application, ApplicationStatus, Priority } from "@/lib/types";
+import { formatDate } from "@/lib/utils";
+import { ApplicationForm } from "@/components/forms/application-form";
+import { useCreateApplication } from "@/lib/mutations";
+import { FormErrorBoundary } from "@/components/error-boundary";
+import type { ApplicationFormData } from "@/lib/validation";
+import { AnimatePresence, motion } from "framer-motion";
 
 export default function ApplicationsPage() {
-  // Mock data - will be replaced with real API calls
-  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filter, setFilter] = useState<
+    "All" | "Applied" | "Interview" | "Offer" | "Rejected"
+  >("All");
   const [applications, setApplications] = useState<Application[]>([
     {
       id: 1,
@@ -90,10 +98,9 @@ export default function ApplicationsPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    
+
     setApplications((prev) => [newApplication, ...prev]);
     setIsAddOpen(false);
-    
     // Uncomment this when API is connected:
     // createApplicationMutation.mutate(data, {
     //   onSuccess: () => {
@@ -109,7 +116,7 @@ export default function ApplicationsPage() {
       Offer: 'bg-green-100 text-green-800',
       Rejected: 'bg-red-100 text-red-800',
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return colors[status] || "bg-gray-100 text-gray-800";
   };
 
   const getPriorityColor = (priority: Priority) => {
@@ -118,50 +125,58 @@ export default function ApplicationsPage() {
       Medium: 'bg-orange-100 text-orange-800',
       Low: 'bg-gray-100 text-gray-800',
     };
-    return colors[priority] || 'bg-gray-100 text-gray-800';
+    return colors[priority] || "bg-gray-100 text-gray-800";
   };
 
+  // ✅ Combined Search + Filter Logic
   const filteredApplications = useMemo(() => {
-    if (!searchTerm.trim()) return applications;
-    
-    const term = searchTerm.toLowerCase();
-    return applications.filter(app => 
-      app.companyName.toLowerCase().includes(term) ||
-      app.position.toLowerCase().includes(term) ||
-      app.location?.toLowerCase().includes(term)
-    );
-  }, [applications, searchTerm]);
+    let result = applications;
+
+    if (filter !== "All") {
+      result = result.filter((app) => app.status === filter);
+    }
+
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(
+        (app) =>
+          app.companyName.toLowerCase().includes(term) ||
+          app.position.toLowerCase().includes(term) ||
+          app.location?.toLowerCase().includes(term)
+      );
+    }
+
+    return result;
+  }, [applications, filter, searchTerm]);
 
   return (
-    <div className="space-y-6">
-      {/* Header - Mobile optimized */}
+    <div className="space-y-6 animate-fadeIn">
+      {/* Header */}
       <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
-        <div className="space-y-1">
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Applications</h2>
+        <div>
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+            Applications
+          </h2>
           <p className="text-sm md:text-base text-neutral-500">
             Manage all your job applications
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2">
-            <Button 
-              variant={viewMode === 'list' ? 'default' : 'outline'} 
-              size="sm" 
-              onClick={() => setViewMode('list')}
-              aria-pressed={viewMode === 'list'}
-              aria-label="Switch to list view"
-              className="touch-manipulation min-h-[44px]"
+            <Button
+              variant={viewMode === "list" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("list")}
+              className="touch-manipulation min-h-[44px] transition-all duration-500 ease-in-out hover:scale-105 active:scale-95"
             >
               <Rows className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">List</span>
             </Button>
-            <Button 
-              variant={viewMode === 'kanban' ? 'default' : 'outline'} 
-              size="sm" 
-              onClick={() => setViewMode('kanban')}
-              aria-pressed={viewMode === 'kanban'}
-              aria-label="Switch to kanban view"
-              className="touch-manipulation min-h-[44px]"
+            <Button
+              variant={viewMode === "kanban" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("kanban")}
+              className="touch-manipulation min-h-[44px] transition-all duration-500 ease-in-out hover:scale-105 active:scale-95"
             >
               <Columns className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Kanban</span>
@@ -169,7 +184,7 @@ export default function ApplicationsPage() {
           </div>
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button aria-label="Add new job application" className="touch-manipulation min-h-[44px]">
+              <Button className="touch-manipulation min-h-[44px] transition-all duration-500 ease-in-out hover:scale-105 active:scale-95">
                 <Plus className="h-4 w-4 md:mr-2" />
                 <span className="hidden sm:inline">Add Application</span>
                 <span className="sm:hidden">Add</span>
@@ -191,82 +206,153 @@ export default function ApplicationsPage() {
         </div>
       </div>
 
-      {/* Search and Filter - Mobile optimized */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+      {/* ✅ Search + Filter Row */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        {/* Search */}
         <div className="relative flex-1">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-neutral-500" />
-          <Input
+          <input
+            type="text"
             placeholder="Search by company or position..."
-            className="pl-8 touch-manipulation min-h-[44px]"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8 pr-3 py-2 w-full rounded-xl border border-neutral-300 text-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-400 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-100"
           />
         </div>
-        <Button variant="outline" className="touch-manipulation min-h-[44px]">Filter</Button>
+
+        {/* Filter */}
+        <select
+          value={filter}
+          onChange={(e) =>
+            setFilter(
+              e.target.value as
+                | "All"
+                | "Applied"
+                | "Interview"
+                | "Offer"
+                | "Rejected"
+            )
+          }
+          className="border border-neutral-300 rounded-xl px-3 py-2 text-sm dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-100 focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+        >
+          <option value="All">All</option>
+          <option value="Applied">Applied</option>
+          <option value="Interview">Interview</option>
+          <option value="Offer">Offer</option>
+          <option value="Rejected">Rejected</option>
+        </select>
       </div>
 
-      {/* Applications Grid/Kanban - Mobile optimized */}
-      {viewMode === 'list' ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredApplications.map((app) => (
-            <Link key={app.id} href={`/applications/${app.id}`}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer touch-manipulation active:scale-[0.98]">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-1 min-w-0 flex-1">
-                      <CardTitle className="text-base md:text-lg truncate">{app.companyName}</CardTitle>
-                      <p className="text-sm font-medium text-neutral-700 truncate">
-                        {app.position}
-                      </p>
-                    </div>
-                    <Badge className={getPriorityColor(app.priority)} variant="secondary">
-                      {app.priority}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex items-center text-sm text-neutral-500">
-                    <MapPin className="mr-1 h-3 w-3 flex-shrink-0" />
-                    <span className="truncate">{app.location}</span>
-                  </div>
-                  <div className="flex items-center text-sm text-neutral-500">
-                    <Calendar className="mr-1 h-3 w-3 flex-shrink-0" />
-                    <span>Applied: {formatDate(app.applicationDate)}</span>
-                  </div>
-                  <div className="mt-4">
-                    <Badge className={getStatusColor(app.status)} variant="secondary">
-                      {app.status}
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
-          {(['Applied','Interview','Offer','Rejected'] as const).map((col) => (
-            <Card key={col}>
-              <CardHeader>
-                <CardTitle className="text-sm">{col}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {filteredApplications.filter((a) => a.status === col).map((app) => (
-                  <Link key={app.id} href={`/applications/${app.id}`}>
-                    <div className="border rounded-md p-3 hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer touch-manipulation active:scale-[0.98]">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium text-sm truncate flex-1">{app.companyName}</span>
-                        <Badge className={getPriorityColor(app.priority)} variant="secondary">{app.priority}</Badge>
+      {/* ✅ Animated Application Cards */}
+      <AnimatePresence mode="wait">
+        {viewMode === "list" ? (
+          <motion.div
+            key={filter + searchTerm}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.4, ease: "easeInOut" }}
+            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            {filteredApplications.map((app) => (
+              <Link key={app.id} href={`/applications/${app.id}`}>
+                <Card className="group bg-white/60 dark:bg-gray-800/50 backdrop-blur-md shadow-md hover:shadow-xl transition-all duration-500 ease-in-out rounded-lg hover:scale-[1.03] active:scale-[0.98] cursor-pointer">
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-2 group-hover:translate-y-[-2px] transition-all duration-500 ease-in-out">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <CardTitle className="text-base md:text-lg truncate group-hover:text-blue-600 transition-colors duration-500 ease-in-out">
+                          {app.companyName}
+                        </CardTitle>
+                        <p className="text-sm font-medium text-neutral-700 truncate group-hover:text-neutral-900 transition-colors duration-500 ease-in-out">
+                          {app.position}
+                        </p>
                       </div>
-                      <p className="text-xs text-neutral-600 truncate">{app.position}</p>
+                      <Badge
+                        className={`${getPriorityColor(
+                          app.priority
+                        )} group-hover:scale-110 transition-all duration-500 ease-in-out`}
+                        variant="secondary"
+                      >
+                        {app.priority}
+                      </Badge>
                     </div>
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="flex items-center text-sm text-neutral-500 group-hover:text-neutral-700 transition-colors duration-500 ease-in-out">
+                      <MapPin className="mr-1 h-3 w-3 flex-shrink-0" />
+                      <span className="truncate">{app.location}</span>
+                    </div>
+                    <div className="flex items-center text-sm text-neutral-500 group-hover:text-neutral-700 transition-colors duration-500 ease-in-out">
+                      <Calendar className="mr-1 h-3 w-3 flex-shrink-0" />
+                      <span>Applied: {formatDate(app.applicationDate)}</span>
+                    </div>
+                    <div className="mt-4">
+                      <Badge
+                        className={`${getStatusColor(
+                          app.status
+                        )} group-hover:scale-110 transition-all duration-500 ease-in-out`}
+                        variant="secondary"
+                      >
+                        {app.status}
+                      </Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </motion.div>
+        ) : (
+          <motion.div
+            key={filter + searchTerm + "-kanban"}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.4, ease: "easeInOut" }}
+            className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4"
+          >
+            {(["Applied", "Interview", "Offer", "Rejected"] as const).map(
+              (col) => (
+                <Card
+                  key={col}
+                  className="bg-white/60 dark:bg-gray-800/50 backdrop-blur-md shadow-lg rounded-lg hover:shadow-xl transition-all duration-500 ease-in-out"
+                >
+                  <CardHeader>
+                    <CardTitle className="text-sm font-semibold">
+                      {col}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {filteredApplications
+                      .filter((a) => a.status === col)
+                      .map((app) => (
+                        <Link key={app.id} href={`/applications/${app.id}`}>
+                          <div className="border rounded-md p-3 bg-white/50 dark:bg-gray-900/50 hover:bg-neutral-100 dark:hover:bg-neutral-900 shadow-md transition-all duration-500 ease-in-out transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium text-sm truncate flex-1 hover:text-blue-600 transition-colors duration-500 ease-in-out">
+                                {app.companyName}
+                              </span>
+                              <Badge
+                                className={`${getPriorityColor(
+                                  app.priority
+                                )} hover:scale-110 transition-all duration-500 ease-in-out`}
+                                variant="secondary"
+                              >
+                                {app.priority}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-neutral-600 truncate hover:text-neutral-800 transition-colors duration-500 ease-in-out">
+                              {app.position}
+                            </p>
+                          </div>
+                        </Link>
+                      ))}
+                  </CardContent>
+                </Card>
+              )
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
