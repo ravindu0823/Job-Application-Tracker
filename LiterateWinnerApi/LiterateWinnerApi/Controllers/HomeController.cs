@@ -1,10 +1,9 @@
 using System.Text;
 using System.Text.Json;
-using JobApplicationTrackerApi.Persistence.DefaultContext;
+using JobApplicationTrackerApi.DTO.Home;
+using JobApplicationTrackerApi.Services.HomeService;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.EntityFrameworkCore;
 
 namespace JobApplicationTrackerApi.Controllers;
 
@@ -13,32 +12,14 @@ namespace JobApplicationTrackerApi.Controllers;
 /// Serves HTML for browsers and JSON for API clients via content negotiation.
 /// </summary>
 [AllowAnonymous]
-[ApiExplorerSettings(IgnoreApi = true)]
+//!Ignored for swagger enable in production env.[ApiExplorerSettings(IgnoreApi = true)]
 public class HomeController(
-    IApiDescriptionGroupCollectionProvider apiExplorer,
-    IWebHostEnvironment environment,
-    IConfiguration configuration,
-    LinkGenerator linkGenerator,
-    DefaultContext context,
+    IHomeService homeService,
     ILogger<HomeController> logger
 )
     : Controller
 {
-    private readonly IApiDescriptionGroupCollectionProvider _apiExplorer =
-        apiExplorer ?? throw new ArgumentNullException(nameof(apiExplorer));
-
-    private readonly IConfiguration _configuration =
-        configuration ?? throw new ArgumentNullException(nameof(configuration));
-
-    private readonly DefaultContext _context =
-        context ?? throw new ArgumentNullException(nameof(context));
-
-    private readonly IWebHostEnvironment _environment =
-        environment ?? throw new ArgumentNullException(nameof(environment));
-
-    private readonly LinkGenerator _linkGenerator =
-        linkGenerator ?? throw new ArgumentNullException(nameof(linkGenerator));
-
+    private readonly IHomeService _homeService = homeService ?? throw new ArgumentNullException(nameof(homeService));
     private readonly ILogger<HomeController> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <summary>
@@ -47,63 +28,16 @@ public class HomeController(
     /// <returns>API home document.</returns>
     [HttpGet("/")]
     [Produces("text/html", "application/json")]
+    [ProducesResponseType(typeof(string), StatusCodes.Status200OK, "text/html")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK, "application/json")]
     public async Task<IActionResult> Index()
     {
         var request = HttpContext.Request;
         var baseUrl = $"{request.Scheme}://{request.Host}";
 
-        // Get database statistics
-        var dbStats = await GetDatabaseStatistics();
-
-        var meta = new
-        {
-            name = "Job Application Tracker API",
-            version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "1.0.0",
-            environment = _environment.EnvironmentName,
-            serverTimeUtc = DateTime.UtcNow,
-            description = "Comprehensive RESTful API for tracking job applications, interviews, and career management.",
-            framework = "ASP.NET Core 9.0",
-            database = "SQL Server with Entity Framework Core 9.0",
-            features = new[]
-            {
-                "Job Application Management",
-                "Interview Scheduling & Tracking",
-                "Notes & Research Management",
-                "Contact Management",
-                "Document Storage",
-                "Status History Tracking",
-                "Analytics & Reporting",
-                "Email Reminders",
-                "Calendar Integration"
-            },
-            databaseStatistics = dbStats,
-            links = new[]
-            {
-                new { rel = "openapi", href = $"{baseUrl}/openapi/v1.json", description = "OpenAPI (JSON)" },
-                new { rel = "swagger-ui", href = $"{baseUrl}/swagger", description = "Swagger UI" },
-                new { rel = "health", href = $"{baseUrl}/health", description = "Liveness/Readiness" },
-                new
-                {
-                    rel = "documentation", href = $"{baseUrl}/api/home/documentation", description = "API Documentation"
-                }
-            }
-        };
-
-        // Build endpoint index via ApiExplorer
-        var endpoints = _apiExplorer.ApiDescriptionGroups.Items
-            .SelectMany(g => g.Items)
-            .Where(d => d.RelativePath is not null)
-            .Select(d => new
-            {
-                controller = d.ActionDescriptor.RouteValues.TryGetValue("controller", out var c) ? c : null,
-                method = d.HttpMethod,
-                path = "/" + d.RelativePath!.TrimStart('/'),
-                supportedResponseTypes = d.SupportedResponseTypes.Select(rt => rt.StatusCode).Distinct().OrderBy(x => x)
-            })
-            .OrderBy(x => x.controller)
-            .ThenBy(x => x.path)
-            .ThenBy(x => x.method)
-            .ToList();
+        // Business logic is now in the HomeService
+        var meta = await _homeService.GetApiMetadataAsync(baseUrl);
+        var endpoints = _homeService.GetApiEndpoints();
 
         var accepts = request.Headers["Accept"].ToString();
         var wantsHtml = string.IsNullOrWhiteSpace(accepts) ||
@@ -124,176 +58,44 @@ public class HomeController(
     /// <returns>Health status</returns>
     [HttpGet("/health")]
     [Produces("application/json")]
+    [ProducesResponseType(typeof(HealthReportDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(HealthReportDto), StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> Health()
     {
-        try
-        {
-            var canConnect = await _context.Database.CanConnectAsync();
-            var dbStats = await GetDatabaseStatistics();
+        // Business logic is now in the HomeService
+        var (healthReport, isHealthy) = await _homeService.GetHealthAsync();
 
-            var health = new
-            {
-                status = canConnect ? "Healthy" : "Unhealthy",
-                timestamp = DateTime.UtcNow,
-                uptime = Environment.TickCount64,
-                environment = _environment.EnvironmentName,
-                version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "Unknown",
-                machineName = Environment.MachineName,
-                processId = Environment.ProcessId,
-                workingSet = Environment.WorkingSet,
-                processorCount = Environment.ProcessorCount,
-                database = new
-                {
-                    connected = canConnect,
-                    provider = _context.Database.ProviderName,
-                    statistics = dbStats
-                }
-            };
-
-            return canConnect ? Ok(health) : StatusCode(503, health);
-        }
-        catch (Exception ex)
+        if (isHealthy)
         {
-            _logger.LogError(ex, "Health check failed");
-            return StatusCode(500, new { status = "Unhealthy", error = ex.Message, timestamp = DateTime.UtcNow });
+            return Ok(healthReport);
         }
+
+        // The service layer handles logging, so we just return the status code.
+        return StatusCode(503, healthReport);
     }
 
     /// <summary>
     /// Gets API documentation and usage examples
     /// </summary>
     /// <returns>API documentation</returns>
-    [HttpGet("/api/home/documentation")]
+    [HttpGet("documentation")]
     [Produces("application/json")]
+    [ProducesResponseType(typeof(ApiDocumentationDto), StatusCodes.Status200OK)]
     public IActionResult GetDocumentation()
     {
         var request = HttpContext.Request;
         var baseUrl = $"{request.Scheme}://{request.Host}";
 
-        var documentation = new
-        {
-            title = "Job Application Tracker API Documentation",
-            version = "1.0.0",
-            description = "A comprehensive API for managing job applications, interviews, and related activities",
-            baseUrl = baseUrl,
-            authentication = new
-            {
-                type = "JWT Bearer Token",
-                description = "All endpoints require authentication except health checks and home page",
-                header = "Authorization: Bearer {token}"
-            },
-            commonHeaders = new
-            {
-                contentType = "application/json",
-                accept = "application/json"
-            },
-            responseFormats = new
-            {
-                success = new { statusCode = 200, description = "Request successful" },
-                created = new { statusCode = 201, description = "Resource created successfully" },
-                noContent = new { statusCode = 204, description = "Request successful, no content returned" },
-                badRequest = new { statusCode = 400, description = "Invalid request data" },
-                unauthorized = new { statusCode = 401, description = "Authentication required" },
-                forbidden = new { statusCode = 403, description = "Access denied" },
-                notFound = new { statusCode = 404, description = "Resource not found" },
-                internalServerError = new { statusCode = 500, description = "Internal server error" }
-            },
-            exampleRequests = new
-            {
-                createApplication = new
-                {
-                    method = "POST",
-                    url = "/api/applications",
-                    body = new
-                    {
-                        companyName = "Microsoft",
-                        position = "Senior Software Engineer",
-                        location = "Seattle, WA",
-                        jobUrl = "https://careers.microsoft.com/job/12345",
-                        applicationStatus = 1,
-                        priority = 3,
-                        salaryMin = 120000,
-                        salaryMax = 150000,
-                        applicationDate = "2024-01-15T00:00:00Z",
-                        jobDescription = "We are looking for a Senior Software Engineer...",
-                        requirements = "5+ years of experience with C# and .NET"
-                    }
-                },
-                createInterview = new
-                {
-                    method = "POST",
-                    url = "/api/applications/1/interviews",
-                    body = new
-                    {
-                        interviewDate = "2024-01-20T14:00:00Z",
-                        interviewType = 2,
-                        duration = 60,
-                        interviewerName = "Sarah Johnson",
-                        interviewerPosition = "Hiring Manager",
-                        location = "Virtual",
-                        meetingLink = "https://teams.microsoft.com/l/meetup-join/12345",
-                        notes = "Technical interview focusing on C# and Azure"
-                    }
-                }
-            },
-            filteringAndPagination = new
-            {
-                applications = new
-                {
-                    queryParameters = new
-                    {
-                        status = "Filter by application status (1=Applied, 2=Interview, 3=Offer, 4=Rejected)",
-                        priority = "Filter by priority (1=Low, 2=Medium, 3=High)",
-                        search = "Search by company name or position",
-                        page = "Page number (default: 1)",
-                        pageSize = "Items per page (default: 20)",
-                        sortBy = "Sort field (ApplicationDate, CompanyName, Status)",
-                        sortOrder = "Sort order (asc, desc)"
-                    },
-                    example =
-                        "/api/applications?status=1&priority=3&search=Microsoft&page=1&pageSize=10&sortBy=ApplicationDate&sortOrder=desc"
-                }
-            }
-        };
+        // Business logic is now in the HomeService
+        var documentation = _homeService.GetApiDocumentation(baseUrl);
 
         return Ok(documentation);
-    }
-
-    private async Task<object> GetDatabaseStatistics()
-    {
-        try
-        {
-            var canConnect = await _context.Database.CanConnectAsync();
-            if (!canConnect)
-            {
-                return new { connected = false, message = "Database unavailable" };
-            }
-
-            return new
-            {
-                connected = true,
-                provider = _context.Database.ProviderName,
-                statistics = new
-                {
-                    applications = await _context.Applications.CountAsync(),
-                    interviews = await _context.Interviews.CountAsync(),
-                    notes = await _context.Notes.CountAsync(),
-                    contacts = await _context.Contacts.CountAsync(),
-                    documents = await _context.Documents.CountAsync(),
-                    statusHistory = await _context.StatusHistory.CountAsync()
-                }
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get database statistics");
-            return new { connected = false, error = ex.Message };
-        }
     }
 
     private static string BuildHtmlHome(object meta, IEnumerable<object> endpoints)
     {
         // Modern, responsive HTML landing page
+        // This is presentation logic and can remain in the controller.
         var sb = new StringBuilder();
         sb.Append(
             "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Job Application Tracker API</title><style>");
