@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { ThemeProvider } from '@/components/theme-provider'
 import { Providers } from "@/lib/providers";
 import { Navigation } from "@/components/navigation";
 import { MobileNavigation } from "@/components/mobile-navigation";
@@ -24,26 +25,25 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <Providers>
-          <ErrorBoundary>
-            <div className="h-full relative">
-              {/* Desktop Navigation */}
-              <div className="hidden h-full md:flex md:w-72 md:flex-col md:fixed md:inset-y-0 z-80">
-                <Navigation />
-              </div>
-              
-              {/* Mobile Navigation */}
-              <MobileNavigation />
-              
-              {/* Main Content */}
-              <main className="md:pl-72 pb-10 pt-16 md:pt-0">
-                <div className="px-4 py-6 md:px-8">
-                  {children}
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <Providers>
+            <ErrorBoundary>
+              <div className="h-full relative">
+                <div className="hidden h-full md:flex md:w-72 md:flex-col md:fixed md:inset-y-0 z-80">
+                  <Navigation />
                 </div>
-              </main>
-            </div>
-          </ErrorBoundary>
-        </Providers>
+              
+                <MobileNavigation />
+                
+                <main className="md:pl-72 pb-10 pt-16 md:pt-0">
+                  <div className="px-4 py-6 md:px-8">
+                    {children}
+                  </div>
+                </main>
+              </div>
+            </ErrorBoundary>
+          </Providers>
+        </ThemeProvider>
       </body>
     </html>
   );
