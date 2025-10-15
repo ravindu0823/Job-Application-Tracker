@@ -24,6 +24,7 @@ using JobApplicationTrackerApi.Services.NotesService;
 using JobApplicationTrackerApi.Services.ContactsService;
 using JobApplicationTrackerApi.Services.StatisticsService;
 using JobApplicationTrackerApi.Services.InterviewsService;
+using JobApplicationTrackerApi.Services.ApplicationsService;
 using JobApplicationTrackerApi.Mappings;
 using JobApplicationTrackerApi.SignalR;
 using LiterateWinnerApi.Services.CacheService;
@@ -331,8 +332,11 @@ public static class DependencyInjection
         // Register Statistics service
         services.AddScoped<IStatisticsService, StatisticsService>();
         
-        // Register Interview services
+        // Register Interview service
         services.AddScoped<IInterviewService, InterviewService>();
+        
+        // Register Application service
+        services.AddScoped<IApplicationService, ApplicationService>();
 
         // Register AutoMapper
         services.AddAutoMapper(typeof(NotesMappingProfile), typeof(ContactsMappingProfile));
