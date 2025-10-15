@@ -57,7 +57,10 @@ app.UseSerilogRequestLogging();
 // app.UseMiddleware<MonitoringMiddleware>();
 
 // Add request context logging middleware
+app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 app.UseMiddleware<RequestContextLoggingMiddleware>();
+
+
 
 app.UseStaticFiles();
 
@@ -87,4 +90,7 @@ if (app.Environment.IsDevelopment())
 app.Run();
 
 // Make Program class accessible for integration testing
+/// <summary>
+///
+/// </summary>
 public partial class Program { }

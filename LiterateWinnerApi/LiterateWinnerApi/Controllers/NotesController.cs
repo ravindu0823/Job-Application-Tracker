@@ -34,27 +34,9 @@ public class NotesController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetNotesByApplication(int applicationId)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
-
-            var notes = await _notesService.GetNotesByApplicationAsync(applicationId, userId);
-            return Ok(ApiResponse<List<NoteResponseDto>>.Success(notes, "Notes retrieved successfully"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning(ex, "Application not found or access denied for application {ApplicationId}", applicationId);
-            return NotFound(ApiResponse<object>.Failure(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving notes for application {ApplicationId}", applicationId);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while retrieving notes"));
-        }
+        var userId = GetUserId();
+        var notes = await _notesService.GetNotesByApplicationAsync(applicationId, userId);
+        return Ok(ApiResponse<List<NoteResponseDto>>.Success(notes, "Notes retrieved successfully"));
     }
 
     /// <summary>
@@ -68,27 +50,11 @@ public class NotesController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetNote(int id)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
-
-            var note = await _notesService.GetNoteByIdAsync(id, userId);
-            if (note == null)
-            {
-                return NotFound(ApiResponse<object>.Failure("Note not found"));
-            }
-
-            return Ok(ApiResponse<NoteResponseDto>.Success(note, "Note retrieved successfully"));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving note {NoteId}", id);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while retrieving the note"));
-        }
+        var userId = GetUserId();
+        var note = await _notesService.GetNoteByIdAsync(id, userId);
+        // The service layer is now expected to throw an exception if the note is not found.
+        // The GlobalExceptionHandlerMiddleware will handle this and return a 404 Not Found.
+        return Ok(ApiResponse<NoteResponseDto>.Success(note, "Note retrieved successfully"));
     }
 
     /// <summary>
@@ -103,28 +69,10 @@ public class NotesController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> CreateNote([FromBody] CreateNoteDto createNoteDto)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
-
-            var note = await _notesService.CreateNoteAsync(createNoteDto, userId);
-            return CreatedAtAction(nameof(GetNote), new { id = note.Id }, 
-                ApiResponse<NoteResponseDto>.Success(note, "Note created successfully"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning(ex, "Application not found or access denied for application {ApplicationId}", createNoteDto.ApplicationId);
-            return NotFound(ApiResponse<object>.Failure(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating note for application {ApplicationId}", createNoteDto.ApplicationId);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while creating the note"));
-        }
+        var userId = GetUserId();
+        var note = await _notesService.CreateNoteAsync(createNoteDto, userId);
+        return CreatedAtAction(nameof(GetNote), new { id = note.Id },
+            ApiResponse<NoteResponseDto>.Success(note, "Note created successfully"));
     }
 
     /// <summary>
@@ -140,27 +88,9 @@ public class NotesController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> UpdateNote(int id, [FromBody] UpdateNoteDto updateNoteDto)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
-
-            var note = await _notesService.UpdateNoteAsync(id, updateNoteDto, userId);
-            return Ok(ApiResponse<NoteResponseDto>.Success(note, "Note updated successfully"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning(ex, "Note not found or access denied for note {NoteId}", id);
-            return NotFound(ApiResponse<object>.Failure(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating note {NoteId}", id);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while updating the note"));
-        }
+        var userId = GetUserId();
+        var note = await _notesService.UpdateNoteAsync(id, updateNoteDto, userId);
+        return Ok(ApiResponse<NoteResponseDto>.Success(note, "Note updated successfully"));
     }
 
     /// <summary>
@@ -174,31 +104,27 @@ public class NotesController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteNote(int id)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
+        var userId = GetUserId();
+        //TODO !:cleanup after successful merge and testing
+        // var result = await _notesService.DeleteNoteAsync(id, userId);
+        // if (!result)
+        // {
+        //     // The service layer should throw InvalidOperationException for not found, which the middleware will handle.
+        //     // This check remains as a safeguard if the service returns false for other reasons.
+        //     return NotFound(ApiResponse<object>.Failure("Note not found or you do not have permission."));
+        // }
+        await _notesService.DeleteNoteAsync(id, userId);
+        return Ok(ApiResponse<object>.Success(new object(), "Note deleted successfully"));
+    }
 
-            var result = await _notesService.DeleteNoteAsync(id, userId);
-            if (!result)
-            {
-                return NotFound(ApiResponse<object>.Failure("Note not found"));
-            }
-
-            return Ok(ApiResponse<object>.Success(new object(), "Note deleted successfully"));
-        }
-        catch (InvalidOperationException ex)
+    private string GetUserId()
+    {
+        var userId = _identityService.GetUserIdentity();
+        if (string.IsNullOrEmpty(userId))
         {
-            _logger.LogWarning(ex, "Note not found or access denied for note {NoteId}", id);
-            return NotFound(ApiResponse<object>.Failure(ex.Message));
+            _logger.LogWarning("User ID not found in token claims.");
+            throw new UnauthorizedAccessException("User not authenticated or token is invalid.");
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting note {NoteId}", id);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while deleting the note"));
-        }
+        return userId;
     }
 }

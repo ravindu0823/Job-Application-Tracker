@@ -21,8 +21,8 @@ public interface INotesService
     /// </summary>
     /// <param name="id">The note ID</param>
     /// <param name="userId">The user ID</param>
-    /// <returns>The note details</returns>
-    Task<NoteResponseDto?> GetNoteByIdAsync(int id, string userId);
+    /// <returns>The note details. Throws an exception if not found.</returns>
+    Task<NoteResponseDto> GetNoteByIdAsync(int id, string userId);
 
     /// <summary>
     /// Create a new note
@@ -46,8 +46,8 @@ public interface INotesService
     /// </summary>
     /// <param name="id">The note ID</param>
     /// <param name="userId">The user ID</param>
-    /// <returns>True if deleted successfully</returns>
-    Task<bool> DeleteNoteAsync(int id, string userId);
+    /// <returns>A task that completes when the note is deleted. Throws an exception if not found.</returns>
+    Task DeleteNoteAsync(int id, string userId);
 
     /// <summary>
     /// Get notes by type for a specific application

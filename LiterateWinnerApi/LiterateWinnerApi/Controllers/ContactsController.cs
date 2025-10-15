@@ -34,27 +34,9 @@ public class ContactsController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetContactsByApplication(int applicationId)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
-
-            var contacts = await _contactsService.GetContactsByApplicationAsync(applicationId, userId);
-            return Ok(ApiResponse<List<ContactResponseDto>>.Success(contacts, "Contacts retrieved successfully"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning(ex, "Application not found or access denied for application {ApplicationId}", applicationId);
-            return NotFound(ApiResponse<object>.Failure(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving contacts for application {ApplicationId}", applicationId);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while retrieving contacts"));
-        }
+        var userId = GetUserId();
+        var contacts = await _contactsService.GetContactsByApplicationAsync(applicationId, userId);
+        return Ok(ApiResponse<List<ContactResponseDto>>.Success(contacts, "Contacts retrieved successfully"));
     }
 
     /// <summary>
@@ -68,27 +50,10 @@ public class ContactsController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> GetContact(int id)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
-
-            var contact = await _contactsService.GetContactByIdAsync(id, userId);
-            if (contact == null)
-            {
-                return NotFound(ApiResponse<object>.Failure("Contact not found"));
-            }
-
-            return Ok(ApiResponse<ContactResponseDto>.Success(contact, "Contact retrieved successfully"));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving contact {ContactId}", id);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while retrieving the contact"));
-        }
+        var userId = GetUserId();
+        var contact = await _contactsService.GetContactByIdAsync(id, userId);
+        // The service layer now guarantees a non-null return or throws an exception.
+        return Ok(ApiResponse<ContactResponseDto>.Success(contact, "Contact retrieved successfully"));
     }
 
     /// <summary>
@@ -103,28 +68,10 @@ public class ContactsController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> CreateContact([FromBody] CreateContactDto createContactDto)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
-
-            var contact = await _contactsService.CreateContactAsync(createContactDto, userId);
-            return CreatedAtAction(nameof(GetContact), new { id = contact.Id }, 
-                ApiResponse<ContactResponseDto>.Success(contact, "Contact created successfully"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning(ex, "Application not found or access denied for application {ApplicationId}", createContactDto.ApplicationId);
-            return NotFound(ApiResponse<object>.Failure(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating contact for application {ApplicationId}", createContactDto.ApplicationId);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while creating the contact"));
-        }
+        var userId = GetUserId();
+        var contact = await _contactsService.CreateContactAsync(createContactDto, userId);
+        return CreatedAtAction(nameof(GetContact), new { id = contact.Id },
+            ApiResponse<ContactResponseDto>.Success(contact, "Contact created successfully"));
     }
 
     /// <summary>
@@ -140,27 +87,9 @@ public class ContactsController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> UpdateContact(int id, [FromBody] UpdateContactDto updateContactDto)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
-
-            var contact = await _contactsService.UpdateContactAsync(id, updateContactDto, userId);
-            return Ok(ApiResponse<ContactResponseDto>.Success(contact, "Contact updated successfully"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning(ex, "Contact not found or access denied for contact {ContactId}", id);
-            return NotFound(ApiResponse<object>.Failure(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating contact {ContactId}", id);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while updating the contact"));
-        }
+        var userId = GetUserId();
+        var contact = await _contactsService.UpdateContactAsync(id, updateContactDto, userId);
+        return Ok(ApiResponse<ContactResponseDto>.Success(contact, "Contact updated successfully"));
     }
 
     /// <summary>
@@ -174,32 +103,9 @@ public class ContactsController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> DeleteContact(int id)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
-
-            var result = await _contactsService.DeleteContactAsync(id, userId);
-            if (!result)
-            {
-                return NotFound(ApiResponse<object>.Failure("Contact not found"));
-            }
-
-            return Ok(ApiResponse<object>.Success(new object(), "Contact deleted successfully"));
-        }
-        catch (InvalidOperationException ex)
-        {
-            _logger.LogWarning(ex, "Contact not found or access denied for contact {ContactId}", id);
-            return NotFound(ApiResponse<object>.Failure(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting contact {ContactId}", id);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while deleting the contact"));
-        }
+        var userId = GetUserId();
+        await _contactsService.DeleteContactAsync(id, userId);
+        return Ok(ApiResponse<object>.Success(new object(), "Contact deleted successfully"));
     }
 
     /// <summary>
@@ -213,31 +119,19 @@ public class ContactsController(
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> SetPrimaryContact(int id)
     {
-        try
-        {
-            var userId = _identityService.GetUserIdentity();
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(ApiResponse<object>.Failure("User not authenticated"));
-            }
+        var userId = GetUserId();
+        await _contactsService.SetPrimaryContactAsync(id, userId);
+        return Ok(ApiResponse<object>.Success(new object(), "Contact set as primary successfully"));
+    }
 
-            var result = await _contactsService.SetPrimaryContactAsync(id, userId);
-            if (!result)
-            {
-                return NotFound(ApiResponse<object>.Failure("Contact not found"));
-            }
-
-            return Ok(ApiResponse<object>.Success(new object(), "Contact set as primary successfully"));
-        }
-        catch (InvalidOperationException ex)
+    private string GetUserId()
+    {
+        var userId = _identityService.GetUserIdentity();
+        if (string.IsNullOrEmpty(userId))
         {
-            _logger.LogWarning(ex, "Contact not found or access denied for contact {ContactId}", id);
-            return NotFound(ApiResponse<object>.Failure(ex.Message));
+            _logger.LogWarning("User ID not found in token claims.");
+            throw new UnauthorizedAccessException("User not authenticated or token is invalid.");
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error setting contact {ContactId} as primary", id);
-            return StatusCode(500, ApiResponse<object>.Failure("An error occurred while setting the contact as primary"));
-        }
+        return userId;
     }
 }

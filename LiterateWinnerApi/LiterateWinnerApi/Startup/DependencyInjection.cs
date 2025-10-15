@@ -18,6 +18,7 @@ using JobApplicationTrackerApi.Services.ConcurrencyService;
 using JobApplicationTrackerApi.Services.IdentityErrorHandlerService;
 using JobApplicationTrackerApi.Services.IdentityService;
 using JobApplicationTrackerApi.Services.MonitoringService;
+using JobApplicationTrackerApi.Services.HomeService;
 using JobApplicationTrackerApi.Services.TokenService;
 using JobApplicationTrackerApi.Services.NotesService;
 using JobApplicationTrackerApi.Services.ContactsService;
@@ -319,6 +320,9 @@ public static class DependencyInjection
         services.AddScoped<IIdentityService, IdentityService>();
         services.AddScoped<IIdentityErrorHandlerService, IdentityErrorHandlerService>();
         services.AddScoped<ITokenService, TokenService>();
+
+        // Register Home service
+        services.AddScoped<IHomeService, HomeService>();
 
         // Register Notes and Contacts services
         services.AddScoped<INotesService, NotesService>();
