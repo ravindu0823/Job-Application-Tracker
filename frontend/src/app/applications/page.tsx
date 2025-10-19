@@ -256,7 +256,7 @@ export default function ApplicationsPage() {
           >
             {filteredApplications.map((app) => (
               <Link key={app.id} href={`/applications/${app.id}`}>
-                <Card className="group bg-white/60 dark:bg-gray-800/50 backdrop-blur-md shadow-md hover:shadow-xl transition-all duration-500 ease-in-out rounded-lg hover:scale-[1.03] active:scale-[0.98] cursor-pointer">
+                <Card className="border border-neutral-200 shadow-sm hover:shadow-md transition-all duration-500 ease-out rounded-lg hover:scale-[1.03] active:scale-[0.98] cursor-pointer">
                   <CardHeader>
                     <div className="flex items-start justify-between gap-2 group-hover:translate-y-[-2px] transition-all duration-500 ease-in-out">
                       <div className="space-y-1 min-w-0 flex-1">
