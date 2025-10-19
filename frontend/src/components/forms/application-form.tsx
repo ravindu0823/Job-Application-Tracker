@@ -59,30 +59,30 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-4xl mx-auto p-4 bg-white dark:bg-neutral-900 rounded-xl shadow-md transition-all duration-300">
+        {/* Basic Info */}
+        <div className="grid gap-6 md:grid-cols-2">
           <FormField
             control={form.control}
             name="companyName"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="w-full">
                 <FormLabel>Company Name *</FormLabel>
                 <FormControl>
-                  <Input placeholder="Tech Company Inc." {...field} />
+                  <Input placeholder="Tech Company Inc." {...field} className="rounded-lg" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="position"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="w-full">
                 <FormLabel>Position *</FormLabel>
                 <FormControl>
-                  <Input placeholder="Software Engineer" {...field} />
+                  <Input placeholder="Software Engineer" {...field} className="rounded-lg" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -90,29 +90,29 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* Location and Job URL */}
+        <div className="grid gap-6 md:grid-cols-2">
           <FormField
             control={form.control}
             name="location"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="w-full">
                 <FormLabel>Location</FormLabel>
                 <FormControl>
-                  <Input placeholder="Remote / San Francisco, CA" {...field} />
+                  <Input placeholder="Remote / San Francisco, CA" {...field} className="rounded-lg" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="jobUrl"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="w-full">
                 <FormLabel>Job URL</FormLabel>
                 <FormControl>
-                  <Input type="url" placeholder="https://..." {...field} />
+                  <Input type="url" placeholder="https://..." {...field} className="rounded-lg" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -120,7 +120,8 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        {/* Status, Priority, Application Date */}
+        <div className="grid gap-6 md:grid-cols-3">
           <FormField
             control={form.control}
             name="status"
@@ -144,7 +145,6 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="priority"
@@ -167,7 +167,6 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="applicationDate"
@@ -175,7 +174,7 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
               <FormItem>
                 <FormLabel>Application Date *</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} />
+                  <Input type="date" {...field} className="rounded-lg" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -183,7 +182,8 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        {/* Salary Fields */}
+        <div className="grid gap-6 md:grid-cols-3">
           <FormField
             control={form.control}
             name="salaryMin"
@@ -196,13 +196,13 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
                     placeholder="80000" 
                     {...field}
                     onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    className="rounded-lg"
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="salaryMax"
@@ -215,13 +215,13 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
                     placeholder="120000" 
                     {...field}
                     onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    className="rounded-lg"
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="salary"
@@ -234,6 +234,7 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
                     placeholder="100000" 
                     {...field}
                     onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                    className="rounded-lg"
                   />
                 </FormControl>
                 <FormMessage />
@@ -242,6 +243,7 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
           />
         </div>
 
+        {/* Textareas */}
         <FormField
           control={form.control}
           name="jobDescription"
@@ -251,7 +253,7 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
               <FormControl>
                 <Textarea 
                   placeholder="Paste the job description here..." 
-                  className="min-h-[120px]"
+                  className="min-h-[140px] rounded-lg resize-none"
                   {...field} 
                 />
               </FormControl>
@@ -259,7 +261,6 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="requirements"
@@ -269,7 +270,7 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
               <FormControl>
                 <Textarea 
                   placeholder="List the job requirements..." 
-                  className="min-h-[120px]"
+                  className="min-h-[140px] rounded-lg resize-none"
                   {...field} 
                 />
               </FormControl>
@@ -278,11 +279,12 @@ export function ApplicationForm({ application, onSubmit, onCancel, isLoading }: 
           )}
         />
 
-        <div className="flex justify-end gap-2">
+        {/* Action Buttons */}
+        <div className="flex justify-end gap-4 pt-4 border-t border-neutral-200 dark:border-neutral-700">
           <Button type="button" variant="ghost" onClick={onCancel} disabled={isLoading}>
             Cancel
           </Button>
-          <Button type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading} className="transition-all duration-300">
             {isLoading ? 'Saving...' : application ? 'Update Application' : 'Create Application'}
           </Button>
         </div>
