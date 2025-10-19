@@ -5,6 +5,7 @@ import { Calendar } from '@/components/calendar';
 import type { Interview, Application } from '@/lib/types';
 import { useCreateInterview, useUpdateInterview, useDeleteInterview } from '@/lib/mutations';
 import type { InterviewFormData } from '@/lib/validation';
+import { motion } from 'framer-motion';
 
 export default function CalendarPage() {
   // Mock data - will be replaced with real API calls
@@ -145,9 +146,7 @@ export default function CalendarPage() {
   const handleUpdateInterview = (id: number, data: Partial<Interview>) => {
     // In production, this would call the API
     setInterviews((prev) =>
-      prev.map((interview) =>
-        interview.id === id ? { ...interview, ...data } : interview
-      )
+      prev.map((interview) => (interview.id === id ? { ...interview, ...data } : interview))
     );
 
     // Uncomment for API integration:
@@ -163,26 +162,39 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Calendar</h2>
-        <p className="text-sm md:text-base text-neutral-500">
-          View and manage all your scheduled interviews
+    <motion.div
+      className="space-y-8 px-4 sm:px-6 md:px-8"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <div className="space-y-2 text-center sm:text-left">
+        <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+          Interview Calendar
+        </h2>
+        <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
+          View and manage all your scheduled interviews in one place.
         </p>
       </div>
 
-      <Calendar
-        interviews={interviews}
-        applications={applications}
-        onCreateInterview={handleCreateInterview}
-        onUpdateInterview={handleUpdateInterview}
-        onDeleteInterview={handleDeleteInterview}
-        isLoading={
-          createInterviewMutation.isPending ||
-          updateInterviewMutation.isPending ||
-          deleteInterviewMutation.isPending
-        }
-      />
-    </div>
+      <motion.div
+        className="rounded-2xl shadow-lg overflow-hidden bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700"
+        whileHover={{ scale: 1.01 }}
+        transition={{ duration: 10}}
+      >
+        <Calendar
+          interviews={interviews}
+          applications={applications}
+          onCreateInterview={handleCreateInterview}
+          onUpdateInterview={handleUpdateInterview}
+          onDeleteInterview={handleDeleteInterview}
+          isLoading={
+            createInterviewMutation.isPending ||
+            updateInterviewMutation.isPending ||
+            deleteInterviewMutation.isPending
+          }
+        />
+      </motion.div>
+    </motion.div>
   );
 }
