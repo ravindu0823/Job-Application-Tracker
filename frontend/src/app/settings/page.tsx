@@ -40,21 +40,31 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-        <p className="text-neutral-500">Configure preferences for your job tracker.</p>
-      </div>
+    <div className="p-6 md:p-10 lg:p-16 bg-gray-50 dark:bg-black min-h-screen transition-colors duration-500">
       
+      {/* Header Section */}
+      <div className="mb-10">
+        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-black dark:text-gray-100 transition-colors duration-300">
+          Settings
+        </h1>
+        <p className="mt-2 text-lg md:text-xl text-gray-600 dark:text-gray-300 transition-colors duration-300">
+          Configure preferences for your job tracker to suit your workflow.
+        </p>
+      </div>
+
+      {/* Form Container */}
       <FormErrorBoundary>
-        <SettingsForm
-          settings={defaultSettings}
-          onSubmit={handleSaveSettings}
-          isLoading={isLoading}
-        />
+          <SettingsForm
+            settings={defaultSettings}
+            onSubmit={handleSaveSettings}
+            isLoading={isLoading}
+          />
       </FormErrorBoundary>
+
+      {/* Footer/Extra Info */}
+      <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400 transition-colors duration-300">
+        All changes are saved locally. Your settings are applied immediately.
+      </div>
     </div>
   );
 }
-
-

@@ -1,4 +1,5 @@
 "use client";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,9 +25,7 @@ export default function ApplicationsPage() {
   const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filter, setFilter] = useState<
-    "All" | "Applied" | "Interview" | "Offer" | "Rejected"
-  >("All");
+  const [filter, setFilter] = useState<"All" | "Applied" | "Interview" | "Offer" | "Rejected">("All");
   const [applications, setApplications] = useState<Application[]>([
     {
       id: 1,
@@ -132,10 +131,7 @@ export default function ApplicationsPage() {
   const filteredApplications = useMemo(() => {
     let result = applications;
 
-    if (filter !== "All") {
-      result = result.filter((app) => app.status === filter);
-    }
-
+    if (filter !== "All") result = result.filter((app) => app.status === filter);
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       result = result.filter(
@@ -150,24 +146,22 @@ export default function ApplicationsPage() {
   }, [applications, filter, searchTerm]);
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-6 animate-fadeIn p-4 md:p-6">
       {/* Header */}
-      <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Applications
-          </h2>
-          <p className="text-sm md:text-base text-neutral-500">
-            Manage all your job applications
-          </p>
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Applications</h2>
+          <p className="text-sm md:text-base text-neutral-500">Manage all your job applications</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* View Toggle */}
           <div className="flex items-center gap-2">
             <Button
               variant={viewMode === "list" ? "default" : "outline"}
               size="sm"
               onClick={() => setViewMode("list")}
-              className="touch-manipulation min-h-[44px] transition-all duration-500 ease-in-out hover:scale-105 active:scale-95"
+              className="min-h-[44px] transition-all duration-300 hover:scale-105 active:scale-95"
             >
               <Rows className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">List</span>
@@ -176,15 +170,17 @@ export default function ApplicationsPage() {
               variant={viewMode === "kanban" ? "default" : "outline"}
               size="sm"
               onClick={() => setViewMode("kanban")}
-              className="touch-manipulation min-h-[44px] transition-all duration-500 ease-in-out hover:scale-105 active:scale-95"
+              className="min-h-[44px] transition-all duration-300 hover:scale-105 active:scale-95"
             >
               <Columns className="h-4 w-4 md:mr-2" />
               <span className="hidden md:inline">Kanban</span>
             </Button>
           </div>
+
+          {/* Add Application */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
             <DialogTrigger asChild>
-              <Button className="touch-manipulation min-h-[44px] transition-all duration-500 ease-in-out hover:scale-105 active:scale-95">
+              <Button className="min-h-[44px] transition-all duration-300 hover:scale-105 active:scale-95">
                 <Plus className="h-4 w-4 md:mr-2" />
                 <span className="hidden sm:inline">Add Application</span>
                 <span className="sm:hidden">Add</span>
@@ -206,9 +202,8 @@ export default function ApplicationsPage() {
         </div>
       </div>
 
-      {/* ✅ Search + Filter Row */}
+      {/* Search + Filter */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        {/* Search */}
         <div className="relative flex-1">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-neutral-500" />
           <input
@@ -219,20 +214,9 @@ export default function ApplicationsPage() {
             className="pl-8 pr-3 py-2 w-full rounded-xl border border-neutral-300 text-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-400 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-100"
           />
         </div>
-
-        {/* Filter */}
         <select
           value={filter}
-          onChange={(e) =>
-            setFilter(
-              e.target.value as
-                | "All"
-                | "Applied"
-                | "Interview"
-                | "Offer"
-                | "Rejected"
-            )
-          }
+          onChange={(e) => setFilter(e.target.value as "All" | "Applied" | "Interview" | "Offer" | "Rejected")}
           className="border border-neutral-300 rounded-xl px-3 py-2 text-sm dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-100 focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
         >
           <option value="All">All</option>
@@ -243,7 +227,7 @@ export default function ApplicationsPage() {
         </select>
       </div>
 
-      {/* ✅ Animated Application Cards */}
+      {/* Animated Application Cards */}
       <AnimatePresence mode="wait">
         {viewMode === "list" ? (
           <motion.div
@@ -252,25 +236,23 @@ export default function ApplicationsPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.4, ease: "easeInOut" }}
-            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+            className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
           >
             {filteredApplications.map((app) => (
               <Link key={app.id} href={`/applications/${app.id}`}>
-                <Card className="border border-neutral-200 shadow-sm hover:shadow-md transition-all duration-500 ease-out rounded-lg hover:scale-[1.03] active:scale-[0.98] cursor-pointer">
+                <Card className="border border-neutral-200 shadow-sm hover:shadow-md transition-all duration-300 ease-out rounded-lg hover:scale-[1.03] active:scale-[0.98] cursor-pointer">
                   <CardHeader>
-                    <div className="flex items-start justify-between gap-2 group-hover:translate-y-[-2px] transition-all duration-500 ease-in-out">
+                    <div className="flex items-start justify-between gap-2 group-hover:translate-y-[-2px] transition-all duration-300 ease-in-out">
                       <div className="space-y-1 min-w-0 flex-1">
-                        <CardTitle className="text-base md:text-lg truncate group-hover:text-blue-600 transition-colors duration-500 ease-in-out">
+                        <CardTitle className="text-base md:text-lg truncate group-hover:text-blue-600 transition-colors duration-300 ease-in-out">
                           {app.companyName}
                         </CardTitle>
-                        <p className="text-sm font-medium text-neutral-700 truncate group-hover:text-neutral-900 transition-colors duration-500 ease-in-out">
+                        <p className="text-sm font-medium text-neutral-700 truncate group-hover:text-neutral-900 transition-colors duration-300 ease-in-out">
                           {app.position}
                         </p>
                       </div>
                       <Badge
-                        className={`${getPriorityColor(
-                          app.priority
-                        )} group-hover:scale-110 transition-all duration-500 ease-in-out`}
+                        className={`${getPriorityColor(app.priority)} group-hover:scale-110 transition-all duration-300 ease-in-out`}
                         variant="secondary"
                       >
                         {app.priority}
@@ -278,19 +260,17 @@ export default function ApplicationsPage() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    <div className="flex items-center text-sm text-neutral-500 group-hover:text-neutral-700 transition-colors duration-500 ease-in-out">
+                    <div className="flex items-center text-sm text-neutral-500 group-hover:text-neutral-700 transition-colors duration-300 ease-in-out">
                       <MapPin className="mr-1 h-3 w-3 flex-shrink-0" />
                       <span className="truncate">{app.location}</span>
                     </div>
-                    <div className="flex items-center text-sm text-neutral-500 group-hover:text-neutral-700 transition-colors duration-500 ease-in-out">
+                    <div className="flex items-center text-sm text-neutral-500 group-hover:text-neutral-700 transition-colors duration-300 ease-in-out">
                       <Calendar className="mr-1 h-3 w-3 flex-shrink-0" />
                       <span>Applied: {formatDate(app.applicationDate)}</span>
                     </div>
                     <div className="mt-4">
                       <Badge
-                        className={`${getStatusColor(
-                          app.status
-                        )} group-hover:scale-110 transition-all duration-500 ease-in-out`}
+                        className={`${getStatusColor(app.status)} group-hover:scale-110 transition-all duration-300 ease-in-out`}
                         variant="secondary"
                       >
                         {app.status}
@@ -308,48 +288,39 @@ export default function ApplicationsPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.4, ease: "easeInOut" }}
-            className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4"
+            className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-4"
           >
-            {(["Applied", "Interview", "Offer", "Rejected"] as const).map(
-              (col) => (
-                <Card
-                  key={col}
-                  className="bg-white/60 dark:bg-gray-800/50 backdrop-blur-md shadow-lg rounded-lg hover:shadow-xl transition-all duration-500 ease-in-out"
-                >
-                  <CardHeader>
-                    <CardTitle className="text-sm font-semibold">
-                      {col}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {filteredApplications
-                      .filter((a) => a.status === col)
-                      .map((app) => (
-                        <Link key={app.id} href={`/applications/${app.id}`}>
-                          <div className="border rounded-md p-3 bg-white/50 dark:bg-gray-900/50 hover:bg-neutral-100 dark:hover:bg-neutral-900 shadow-md transition-all duration-500 ease-in-out transform hover:scale-[1.03] active:scale-[0.98] cursor-pointer">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium text-sm truncate flex-1 hover:text-blue-600 transition-colors duration-500 ease-in-out">
-                                {app.companyName}
-                              </span>
-                              <Badge
-                                className={`${getPriorityColor(
-                                  app.priority
-                                )} hover:scale-110 transition-all duration-500 ease-in-out`}
-                                variant="secondary"
-                              >
-                                {app.priority}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-neutral-600 truncate hover:text-neutral-800 transition-colors duration-500 ease-in-out">
-                              {app.position}
-                            </p>
+            {(["Applied", "Interview", "Offer", "Rejected"] as const).map((col) => (
+              <Card key={col} className="border border-neutral-200 shadow-sm hover:shadow-md transition-all duration-300 ease-out rounded-lg hover:scale-[1.03] active:scale-[0.98] cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold">{col}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {filteredApplications
+                    .filter((a) => a.status === col)
+                    .map((app) => (
+                      <Link key={app.id} href={`/applications/${app.id}`}>
+                        <div className="shadow-sm hover:shadow-md transition-all duration-300 ease-out rounded-lg hover:scale-[1.03] active:scale-[0.98] cursor-pointer p-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-sm truncate flex-1 hover:text-blue-600 transition-colors duration-300 ease-in-out">
+                              {app.companyName}
+                            </span>
+                            <Badge
+                              className={`${getPriorityColor(app.priority)} hover:scale-110 transition-all duration-300 ease-in-out`}
+                              variant="secondary"
+                            >
+                              {app.priority}
+                            </Badge>
                           </div>
-                        </Link>
-                      ))}
-                  </CardContent>
-                </Card>
-              )
-            )}
+                          <p className="text-xs text-neutral-600 truncate hover:text-neutral-800 transition-colors duration-300 ease-in-out">
+                            {app.position}
+                          </p>
+                        </div>
+                      </Link>
+                    ))}
+                </CardContent>
+              </Card>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
