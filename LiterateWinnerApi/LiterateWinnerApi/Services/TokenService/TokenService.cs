@@ -29,7 +29,8 @@ public class TokenService(
 
             var claims = new List<Claim>
             {
-                new(ClaimTypes.Name, user.Id)
+                new(ClaimTypes.Name, user.Id),
+                new (ClaimTypes.NameIdentifier, user.Id)
             };
 
             if (user.Roles != null && user.Roles.Any())
