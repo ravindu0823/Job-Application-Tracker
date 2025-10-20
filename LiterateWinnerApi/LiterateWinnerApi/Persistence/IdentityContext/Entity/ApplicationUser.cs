@@ -5,6 +5,8 @@ namespace JobApplicationTrackerApi.Persistence.IdentityContext.Entity;
 
 public sealed class ApplicationUser : IdentityUser
 {
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
     public string? RefreshToken { get; set; }
     public DateTime? RefreshTokenExpireTime { get; set; } = DateTime.UtcNow;
     public DateTime? CreateUtc { get; set; } = DateTime.UtcNow;
@@ -13,5 +15,5 @@ public sealed class ApplicationUser : IdentityUser
     public CommonStatus? Status { get; set; } = CommonStatus.Active;
 
     // Additional properties
-    public string? FullName { get; set; }
+    public string FullName =>  $"{FirstName} {LastName}";
 }

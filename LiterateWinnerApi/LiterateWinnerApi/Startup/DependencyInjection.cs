@@ -26,6 +26,7 @@ using JobApplicationTrackerApi.Services.StatisticsService;
 using JobApplicationTrackerApi.Services.InterviewsService;
 using JobApplicationTrackerApi.Services.ApplicationsService;
 using JobApplicationTrackerApi.Mappings;
+using JobApplicationTrackerApi.Services.AuthService;
 using JobApplicationTrackerApi.SignalR;
 using LiterateWinnerApi.Services.CacheService;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -337,6 +338,9 @@ public static class DependencyInjection
         
         // Register Application service
         services.AddScoped<IApplicationService, ApplicationService>();
+        
+        // Register Auth Service
+        services.AddScoped<IAuthService, AuthService>();
 
         // Register AutoMapper
         services.AddAutoMapper(typeof(NotesMappingProfile), typeof(ContactsMappingProfile));
