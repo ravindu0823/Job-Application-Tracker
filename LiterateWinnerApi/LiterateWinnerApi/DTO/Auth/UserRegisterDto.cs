@@ -24,4 +24,9 @@ public sealed record UserRegisterDto
     /// Password for the new user account.
     /// </summary>
     public string Password { get; set; } = string.Empty;
+
+    /// <summary>
+    /// role for the new user account.
+    /// </summary>
+    public string? Role { get; set; } = string.Empty;
 }

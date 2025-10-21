@@ -8,6 +8,7 @@ using JobApplicationTrackerApi.Services.TokenService.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using JobApplicationTrackerApi.DTO.Auth;
+using JobApplicationTrackerApi.Infrastructure;
 
 namespace JobApplicationTrackerApi.Services.AuthService;
 
@@ -32,7 +33,7 @@ public class AuthService(
     private readonly ILogger<AuthService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
-    public async Task<AuthResponseDto?> RegisterUserAsync(string email, string password, string firstName, string lastName)
+    public async Task<AuthResponseDto?> RegisterUserAsync(string email, string password, string firstName, string lastName, string? role = null)
     {
         try
         {
@@ -63,7 +64,24 @@ public class AuthService(
                     email, string.Join(", ", result.Errors.Select(e => e.Description)));
                 throw new InvalidOperationException("Registration failed");
             }
+            
+            // If role is not specified or invalid, default to "User" role
+            var roleToAssign = !string.IsNullOrEmpty(role) && 
+                               (role == Roles.Admin || role == Roles.User) 
+                ? role 
+                : Roles.User;
 
+            var roleResult = await _userManager.AddToRoleAsync(user, roleToAssign);
+        
+            if (!roleResult.Succeeded)
+            {
+                _logger.LogError("Failed to assign role {Role} to user {Email}: {Errors}",
+                    roleToAssign, email, string.Join(", ", roleResult.Errors.Select(e => e.Description)));
+            
+                // Rollback: delete the user if role assignment fails
+                await _userManager.DeleteAsync(user);
+                throw new InvalidOperationException("Registration failed: Unable to assign user role");
+            }
             _logger.LogInformation("User {Email} registered successfully", email);
 
             // Get user roles

@@ -1,4 +1,5 @@
 ﻿using JobApplicationTrackerApi.DTO.Auth;
+using JobApplicationTrackerApi.Infrastructure;
 using JobApplicationTrackerApi.Services.AuthService;
 using JobApplicationTrackerApi.Services.IdentityService;
 using JobApplicationTrackerApi.Utils;
@@ -39,7 +40,8 @@ public class AuthController(
                 registerDto.Email,
                 registerDto.Password,
                 registerDto.FirstName,
-                registerDto.LastName
+                registerDto.LastName,
+                registerDto.Role
             );
             return CreatedAtAction(nameof(Register), 
                 ApiResponse<AuthResponseDto>.Success(result, "User registered successfully"));
@@ -56,7 +58,52 @@ public class AuthController(
                 ApiResponse<object>.Failure("An error occurred during registration"));
         }
     }
-
+    
+    /// <summary>
+    /// Register a new administrator account
+    /// </summary>
+    /// <param name="dto">The registration data for the new administrator</param>
+    /// <returns>The registered administrator details with authentication tokens</returns>
+    /// <response code="201">Administrator account created successfully</response>
+    /// <response code="400">Invalid request data or user already exists</response>
+    /// <response code="401">Unauthorized - Authentication token missing or invalid</response>
+    /// <response code="403">Forbidden - User does not have Admin role</response>
+    /// <response code="500">Internal server error occurred during registration</response>
+    [HttpPost("register-admin")]
+    [Authorize(Roles = Roles.Admin)] // Only admins can create other admins
+    [ProducesResponseType(typeof(ApiResponse<AuthResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> RegisterAdmin([FromBody] UserRegisterDto dto)
+    {
+        try
+        {
+            var result = await _authService.RegisterUserAsync(
+                dto.Email,
+                dto.Password,
+                dto.FirstName,
+                dto.LastName,
+                Roles.Admin // Force admin role
+            );
+            return CreatedAtAction(nameof(Register), 
+                ApiResponse<AuthResponseDto>.Success(result, "User registered successfully"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Registration failed for {Email}", dto.Email);
+            return BadRequest(ApiResponse<object>.Failure(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during registration for {Email}", dto.Email);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Failure("An error occurred during registration"));
+        }
+     
+    }
+    
     /// <summary>
     /// Login with email and password
     /// </summary>
