@@ -22,103 +22,127 @@ public class ApplicationService(
 
     /// <inheritdoc />
     public async Task<PaginatedResultDto<ApplicationResponseDto>> GetApplicationsAsync(
-        string userId,
-        ApplicationStatus? status = null,
-        ApplicationPriority? priority = null,
-        string? searchTerm = null,
-        int pageNumber = 1,
-        int pageSize = 10,
-        DateTime? startDate = null,
-        DateTime? endDate = null,
-        string? sortBy = "date",
-        string? sortOrder = "desc")
+    string userId,
+    ApplicationStatus? status = null,
+    ApplicationPriority? priority = null,
+    string? searchTerm = null,
+    int pageNumber = 1,
+    int pageSize = 10,
+    DateTime? startDate = null,
+    DateTime? endDate = null,
+    string? sortBy = "date",
+    string? sortOrder = "desc")
+{
+    try
     {
-        try
+        // Normalize cache key
+        var normalizedSearch = string.IsNullOrWhiteSpace(searchTerm) ? "none" : searchTerm.ToLower();
+        var cacheKey = $"applications:user:{userId}:status:{status}:priority:{priority}:search:{normalizedSearch}:start:{startDate}:end:{endDate}:sort:{sortBy}:{sortOrder}:page:{pageNumber}:size:{pageSize}";
+        
+        _logger.LogInformation("Fetching applications with cache key: {CacheKey}", cacheKey);
+        
+        return await _cacheService.GetOrSetAsync(cacheKey, async () =>
         {
-            var cacheKey = $"applications:user:{userId}:status:{status}:priority:{priority}:search:{searchTerm?.ToLower()}:start:{startDate}:end:{endDate}:sort:{sortBy}:{sortOrder}:page:{pageNumber}:size:{pageSize}";
-            
-            return await _cacheService.GetOrSetAsync(cacheKey, async () =>
+            var query = _context.Set<Application>()
+                .Include(a => a.Interviews)
+                .Include(a => a.Notes)
+                .Include(a => a.Contacts)
+                .Include(a => a.Documents)
+                .Where(a => a.UserId == userId);
+
+            // DEBUG: Count before filters
+            var countBeforeFilters = await query.CountAsync();
+            _logger.LogInformation("Applications before filters: {Count}", countBeforeFilters);
+
+            // Apply filters
+            if (status.HasValue)
             {
-                var query = _context.Set<Application>()
-                    .Include(a => a.Interviews)
-                    .Include(a => a.Notes)
-                    .Include(a => a.Contacts)
-                    .Include(a => a.Documents)
-                    .Where(a => a.UserId == userId);
+                query = query.Where(a => a.ApplicationStatus == status.Value);
+                _logger.LogInformation("After status filter: {Count}", await query.CountAsync());
+            }
 
-                // Apply filters
-                if (status.HasValue)
-                    query = query.Where(a => a.ApplicationStatus == status.Value);
+            if (priority.HasValue)
+            {
+                query = query.Where(a => a.Priority == priority.Value);
+                _logger.LogInformation("After priority filter: {Count}", await query.CountAsync());
+            }
 
-                if (priority.HasValue)
-                    query = query.Where(a => a.Priority == priority.Value);
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var search = searchTerm.ToLower();
+                query = query.Where(a =>
+                    a.CompanyName.ToLower().Contains(search) ||
+                    a.Position.ToLower().Contains(search));
+                _logger.LogInformation("After search filter: {Count}", await query.CountAsync());
+            }
 
-                if (!string.IsNullOrWhiteSpace(searchTerm))
+            // Date range filtering
+            if (startDate.HasValue)
+            {
+                query = query.Where(a => a.ApplicationDate >= startDate.Value);
+                _logger.LogInformation("After startDate filter: {Count}", await query.CountAsync());
+            }
+
+            if (endDate.HasValue)
+            {
+                query = query.Where(a => a.ApplicationDate <= endDate.Value);
+                _logger.LogInformation("After endDate filter: {Count}", await query.CountAsync());
+            }
+
+            // Get total count
+            var totalCount = await query.CountAsync();
+            _logger.LogInformation("Final count before pagination: {Count}", totalCount);
+
+            // Apply sorting
+            query = ApplySorting(query, sortBy, sortOrder);
+
+            // Apply pagination
+            var items = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(a => new ApplicationResponseDto
                 {
-                    var search = searchTerm.ToLower();
-                    query = query.Where(a =>
-                        a.CompanyName.ToLower().Contains(search) ||
-                        a.Position.ToLower().Contains(search));
-                }
+                    Id = a.Id,
+                    CompanyName = a.CompanyName,
+                    Position = a.Position,
+                    Location = a.Location,
+                    JobUrl = a.JobUrl,
+                    ApplicationStatus = a.ApplicationStatus,
+                    Priority = a.Priority,
+                    Salary = a.Salary,
+                    SalaryMin = a.SalaryMin,
+                    SalaryMax = a.SalaryMax,
+                    ApplicationDate = a.ApplicationDate,
+                    ResponseDate = a.ResponseDate,
+                    OfferDate = a.OfferDate,
+                    InterviewCount = a.Interviews.Count,
+                    NoteCount = a.Notes.Count,
+                    ContactCount = a.Contacts.Count,
+                    DocumentCount = a.Documents.Count,
+                    CreatedUtc = a.CreatedUtc,
+                    CreatedBy = a.CreatedBy,
+                    UpdatedUtc = a.UpdatedUtc,
+                    UpdatedBy = a.UpdatedBy
+                })
+                .ToListAsync();
 
-                // Date range filtering
-                if (startDate.HasValue)
-                    query = query.Where(a => a.ApplicationDate >= startDate.Value);
+            _logger.LogInformation("Returning {ItemCount} items out of {TotalCount}", items.Count, totalCount);
 
-                if (endDate.HasValue)
-                    query = query.Where(a => a.ApplicationDate <= endDate.Value);
-
-                // Get total count
-                var totalCount = await query.CountAsync();
-
-                // Apply sorting
-                query = ApplySorting(query, sortBy, sortOrder);
-
-                // Apply pagination
-                var items = await query
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize)
-                    .Select(a => new ApplicationResponseDto
-                    {
-                        Id = a.Id,
-                        CompanyName = a.CompanyName,
-                        Position = a.Position,
-                        Location = a.Location,
-                        JobUrl = a.JobUrl,
-                        ApplicationStatus = a.ApplicationStatus,
-                        Priority = a.Priority,
-                        Salary = a.Salary,
-                        SalaryMin = a.SalaryMin,
-                        SalaryMax = a.SalaryMax,
-                        ApplicationDate = a.ApplicationDate,
-                        ResponseDate = a.ResponseDate,
-                        OfferDate = a.OfferDate,
-                        InterviewCount = a.Interviews.Count,
-                        NoteCount = a.Notes.Count,
-                        ContactCount = a.Contacts.Count,
-                        DocumentCount = a.Documents.Count,
-                        CreatedUtc = a.CreatedUtc,
-                        CreatedBy = a.CreatedBy,
-                        UpdatedUtc = a.UpdatedUtc,
-                        UpdatedBy = a.UpdatedBy
-                    })
-                    .ToListAsync();
-
-                return new PaginatedResultDto<ApplicationResponseDto>
-                {
-                    Items = items,
-                    TotalCount = totalCount,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize
-                };
-            }, TimeSpan.FromMinutes(5));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving applications for user {UserId}", userId);
-            throw;
-        }
+            return new PaginatedResultDto<ApplicationResponseDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+        }, TimeSpan.FromMinutes(5));
     }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error retrieving applications for user {UserId}", userId);
+        throw;
+    }
+}
 
     /// <inheritdoc />
     public async Task<ApplicationResponseDto?> GetApplicationByIdAsync(int id, string userId)
@@ -246,7 +270,8 @@ public class ApplicationService(
         {
             _logger.LogInformation("Updating application {ApplicationId} for user {UserId}", id, userId);
 
-            var application = await _context.Set<Application>()
+            var application = await _context.Applications
+                .AsTracking() 
                 .Include(a => a.Interviews)
                 .Include(a => a.Notes)
                 .Include(a => a.Contacts)
@@ -300,7 +325,10 @@ public class ApplicationService(
 
             if (dto.Requirements != null)
                 application.Requirements = dto.Requirements;
-
+            
+            application.UpdatedUtc = DateTime.UtcNow;
+            application.UpdatedBy = userId;
+            
             await _context.SaveChangesAsync();
 
             // Clear related cache entries
@@ -343,81 +371,97 @@ public class ApplicationService(
 
     /// <inheritdoc />
     public async Task<ApplicationResponseDto?> UpdateApplicationStatusAsync(int id, ApplicationStatus status, string userId)
+{
+    try
     {
-        try
+        _logger.LogInformation("Updating status for application {ApplicationId} to {Status} for user {UserId}", id, status, userId);
+
+        var application = await _context.Applications
+            .AsTracking() // CRITICAL: Force entity tracking
+            .Include(a => a.StatusHistory)
+            .Include(a => a.Interviews)
+            .Include(a => a.Notes)
+            .Include(a => a.Contacts)
+            .Include(a => a.Documents)
+            .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId);
+
+        if (application == null)
+            return null;
+
+        // Validate status transition
+        ValidateStatusTransition(application.ApplicationStatus, status);
+
+        var oldStatus = application.ApplicationStatus;
+        application.ApplicationStatus = status;
+        application.UpdatedUtc = DateTime.UtcNow;
+        application.UpdatedBy = userId;
+        
+        // Set response date if status indicates company responded
+        if (ShouldSetResponseDate(oldStatus, status) && application.ResponseDate == null)
+            application.ResponseDate = DateTime.UtcNow;
+
+        // Set offer date if offer received
+        if (status == ApplicationStatus.Offer && application.OfferDate == null)
+            application.OfferDate = DateTime.UtcNow;
+
+        // CRITICAL: Explicitly mark as modified
+        _context.Entry(application).State = EntityState.Modified;
+
+        // Log before save
+        _logger.LogInformation("Entity state before save: {State}", _context.Entry(application).State);
+        
+        var changeCount = await _context.SaveChangesAsync();
+        
+        _logger.LogInformation("SaveChanges returned {ChangeCount} changes for application {ApplicationId}", changeCount, id);
+        
+        if (changeCount == 0)
         {
-            _logger.LogInformation("Updating status for application {ApplicationId} to {Status} for user {UserId}", id, status, userId);
-
-            var application = await _context.Set<Application>()
-                .Include(a => a.StatusHistory)
-                .Include(a => a.Interviews)
-                .Include(a => a.Notes)
-                .Include(a => a.Contacts)
-                .Include(a => a.Documents)
-                .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId);
-
-            if (application == null)
-                return null;
-
-            // Validate status transition
-            ValidateStatusTransition(application.ApplicationStatus, status);
-
-            var oldStatus = application.ApplicationStatus;
-            application.ApplicationStatus = status;
-
-            // Set response date if status indicates company responded
-            if (ShouldSetResponseDate(oldStatus, status) && application.ResponseDate == null)
-                application.ResponseDate = DateTime.UtcNow;
-
-            // Set offer date if offer received
-            if (status == ApplicationStatus.Offer && application.OfferDate == null)
-                application.OfferDate = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            // Clear related cache entries
-            await _cacheService.RemoveByPatternAsync($"applications:user:{userId}:*");
-            await _cacheService.RemoveAsync($"application:{id}:user:{userId}");
-
-            _logger.LogInformation("Updated status for application {ApplicationId} from {OldStatus} to {NewStatus} for user {UserId}", 
-                id, oldStatus, status, userId);
-
-            return new ApplicationResponseDto
-            {
-                Id = application.Id,
-                CompanyName = application.CompanyName,
-                Position = application.Position,
-                Location = application.Location,
-                JobUrl = application.JobUrl,
-                ApplicationStatus = application.ApplicationStatus,
-                Priority = application.Priority,
-                Salary = application.Salary,
-                SalaryMin = application.SalaryMin,
-                SalaryMax = application.SalaryMax,
-                ApplicationDate = application.ApplicationDate,
-                ResponseDate = application.ResponseDate,
-                OfferDate = application.OfferDate,
-                InterviewCount = application.Interviews.Count,
-                NoteCount = application.Notes.Count,
-                ContactCount = application.Contacts.Count,
-                DocumentCount = application.Documents.Count,
-                CreatedUtc = application.CreatedUtc,
-                CreatedBy = application.CreatedBy,
-                UpdatedUtc = application.UpdatedUtc,
-                UpdatedBy = application.UpdatedBy
-            };
+            _logger.LogWarning("WARNING: No changes were saved to database for application {ApplicationId}!", id);
         }
-        catch (InvalidOperationException ex)
+        
+        // Clear related cache entries
+        await _cacheService.RemoveByPatternAsync($"applications:user:{userId}:*");
+        await _cacheService.RemoveAsync($"application:{id}:user:{userId}");
+
+        _logger.LogInformation("Updated status for application {ApplicationId} from {OldStatus} to {NewStatus} for user {UserId}", 
+            id, oldStatus, status, userId);
+
+        return new ApplicationResponseDto
         {
-            _logger.LogWarning(ex, "Invalid status transition for application {ApplicationId}", id);
-            throw;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating status for application {ApplicationId} for user {UserId}", id, userId);
-            throw;
-        }
+            Id = application.Id,
+            CompanyName = application.CompanyName,
+            Position = application.Position,
+            Location = application.Location,
+            JobUrl = application.JobUrl,
+            ApplicationStatus = application.ApplicationStatus,
+            Priority = application.Priority,
+            Salary = application.Salary,
+            SalaryMin = application.SalaryMin,
+            SalaryMax = application.SalaryMax,
+            ApplicationDate = application.ApplicationDate,
+            ResponseDate = application.ResponseDate,
+            OfferDate = application.OfferDate,
+            InterviewCount = application.Interviews.Count,
+            NoteCount = application.Notes.Count,
+            ContactCount = application.Contacts.Count,
+            DocumentCount = application.Documents.Count,
+            CreatedUtc = application.CreatedUtc,
+            CreatedBy = application.CreatedBy,
+            UpdatedUtc = application.UpdatedUtc,
+            UpdatedBy = application.UpdatedBy
+        };
     }
+    catch (InvalidOperationException ex)
+    {
+        _logger.LogWarning(ex, "Invalid status transition for application {ApplicationId}", id);
+        throw;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Error updating status for application {ApplicationId} for user {UserId}", id, userId);
+        throw;
+    }
+}
 
     /// <inheritdoc />
     public async Task<bool> DeleteApplicationAsync(int id, string userId)
