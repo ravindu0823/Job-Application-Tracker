@@ -5,6 +5,7 @@ import { SettingsForm } from '@/components/forms/settings-form';
 import type { SettingsFormData } from '@/lib/validation';
 import { toast } from 'sonner';
 import { FormErrorBoundary } from '@/components/error-boundary';
+import { motion } from 'framer-motion';
 
 export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -40,8 +41,13 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-6 md:p-10 lg:p-16 bg-gray-50 dark:bg-black min-h-screen transition-colors duration-500">
-      
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.6, ease: 'easeInOut' }}
+      className="p-6 md:p-10 lg:p-16 bg-gray-50 dark:bg-black min-h-screen transition-colors duration-500"
+    >
       {/* Header Section */}
       <div className="mb-10">
         <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-black dark:text-gray-100 transition-colors duration-300">
@@ -54,17 +60,17 @@ export default function SettingsPage() {
 
       {/* Form Container */}
       <FormErrorBoundary>
-          <SettingsForm
-            settings={defaultSettings}
-            onSubmit={handleSaveSettings}
-            isLoading={isLoading}
-          />
+        <SettingsForm
+          settings={defaultSettings}
+          onSubmit={handleSaveSettings}
+          isLoading={isLoading}
+        />
       </FormErrorBoundary>
 
       {/* Footer/Extra Info */}
       <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400 transition-colors duration-300">
         All changes are saved locally. Your settings are applied immediately.
       </div>
-    </div>
+    </motion.div>
   );
 }
