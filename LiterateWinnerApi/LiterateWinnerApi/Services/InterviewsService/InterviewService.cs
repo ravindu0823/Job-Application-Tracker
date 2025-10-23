@@ -25,7 +25,7 @@ public class InterviewService(
     {
         try
         {
-            var cacheKey = $"interviews_calendar_{startDate:yyyyMMdd}_{endDate:yyyyMMdd}_{userId}";
+            var cacheKey = $"interviews:calendar:user:{userId}:start:{startDate:yyyyMMdd}:end:{endDate:yyyyMMdd}";
 
             return await _cacheService.GetOrSetAsync(cacheKey, async () =>
             {
@@ -72,7 +72,7 @@ public class InterviewService(
     {
         try
         {
-            var cacheKey = $"interviews_application_{applicationId}_{userId}";
+            var cacheKey = $"interviews:application:{applicationId}:user:{userId}";
 
             return await _cacheService.GetOrSetAsync(cacheKey, async () =>
             {
@@ -158,9 +158,9 @@ public class InterviewService(
             await _context.SaveChangesAsync();
 
             // Clear related cache entries
-            await _cacheService.RemoveByPatternAsync($"interviews_application_{applicationId}_{userId}");
-            await _cacheService.RemoveByPatternAsync($"interviews_calendar_*_{userId}");
-            await _cacheService.RemoveByPatternAsync($"interviews_upcoming_{userId}");
+            await _cacheService.RemoveByPatternAsync($"interviews:application:{applicationId}:user:{userId}");
+            await _cacheService.RemoveByPatternAsync($"interviews:calendar:user:{userId}:*");
+            await _cacheService.RemoveByPatternAsync($"interviews:upcoming:user:{userId}");
 
             _logger.LogInformation("Interview created successfully with ID: {InterviewId}", interview.Id);
 
@@ -201,6 +201,7 @@ public class InterviewService(
             _logger.LogInformation("Updating interview ID: {InterviewId}", id);
 
             var interview = await _context.Interviews
+                .AsTracking()
                 .Include(i => i.Application)
                 .FirstOrDefaultAsync(i => i.Id == id && i.Application.UserId == userId);
 
@@ -241,14 +242,19 @@ public class InterviewService(
 
             if (!string.IsNullOrEmpty(updateInterviewDto.Outcome))
                 interview.Outcome = updateInterviewDto.Outcome;
-
+            
+            interview.UpdatedUtc = DateTime.UtcNow;
+            interview.UpdatedBy = userId;
+            
+            _context.Entry(interview).State = EntityState.Modified;
+            
             await _context.SaveChangesAsync();
 
             // Clear related cache entries
-            await _cacheService.RemoveByPatternAsync($"interviews_application_{interview.ApplicationId}_{userId}");
-            await _cacheService.RemoveByPatternAsync($"interviews_calendar_*_{userId}");
-            await _cacheService.RemoveByPatternAsync($"interviews_upcoming_{userId}");
-            await _cacheService.RemoveAsync($"interview_{id}_{userId}");
+            await _cacheService.RemoveByPatternAsync($"interviews:application:{interview.ApplicationId}:user:{userId}");
+            await _cacheService.RemoveByPatternAsync($"interviews:calendar:user:{userId}:*");
+            await _cacheService.RemoveByPatternAsync($"interviews:upcoming:user:{userId}");
+            await _cacheService.RemoveAsync($"interviews:id:{id}:user:{userId}");
 
             _logger.LogInformation("Interview updated successfully with ID: {InterviewId}", id);
 
@@ -301,10 +307,10 @@ public class InterviewService(
             await _context.SaveChangesAsync();
 
             // Clear related cache entries
-            await _cacheService.RemoveByPatternAsync($"interviews_application_{interview.ApplicationId}_{userId}");
-            await _cacheService.RemoveByPatternAsync($"interviews_calendar_*_{userId}");
-            await _cacheService.RemoveByPatternAsync($"interviews_upcoming_{userId}");
-            await _cacheService.RemoveAsync($"interview_{id}_{userId}");
+            await _cacheService.RemoveByPatternAsync($"interviews:application:{interview.ApplicationId}:user:{userId}");
+            await _cacheService.RemoveByPatternAsync($"interviews:calendar:user:{userId}:*");
+            await _cacheService.RemoveByPatternAsync($"interviews:upcoming:user:{userId}");
+            await _cacheService.RemoveAsync($"interviews:id:{id}:user:{userId}");
 
             _logger.LogInformation("Interview deleted successfully with ID: {InterviewId}", id);
         }
@@ -320,7 +326,7 @@ public class InterviewService(
     {
         try
         {
-            var cacheKey = $"interview_{id}_{userId}";
+            var cacheKey = $"interviews:id:{id}:user:{userId}";
 
             return await _cacheService.GetOrSetAsync(cacheKey, async () =>
             {
@@ -371,6 +377,7 @@ public class InterviewService(
             _logger.LogInformation("Marking reminder as sent for interview ID: {InterviewId}", id);
 
             var interview = await _context.Interviews
+                .AsTracking()
                 .Include(i => i.Application)
                 .FirstOrDefaultAsync(i => i.Id == id && i.Application.UserId == userId);
 
@@ -380,10 +387,15 @@ public class InterviewService(
             }
 
             interview.ReminderSent = true;
+            interview.UpdatedUtc = DateTime.UtcNow;
+            interview.UpdatedBy = userId;
+            
+            _context.Entry(interview).State = EntityState.Modified;
+            
             await _context.SaveChangesAsync();
 
             // Clear cache entry
-            await _cacheService.RemoveAsync($"interview_{id}_{userId}");
+            await _cacheService.RemoveAsync($"interviews:id:{id}:user:{userId}");
 
             _logger.LogInformation("Reminder marked as sent for interview ID: {InterviewId}", id);
 
@@ -401,7 +413,7 @@ public class InterviewService(
     {
         try
         {
-            var cacheKey = $"interviews_upcoming_{userId}";
+            var cacheKey = $"interviews:upcoming:user:{userId}";
 
             return await _cacheService.GetOrSetAsync(cacheKey, async () =>
             {
